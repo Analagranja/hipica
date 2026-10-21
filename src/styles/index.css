@@ -1,1 +1,14 @@
 @import "tailwindcss";
+@import "./tokens.css";
+
+@layer base {
+  body {
+    @apply bg-canvas font-body text-ink;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-heading text-ink;
+  }
+}

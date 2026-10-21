@@ -1,0 +1,22 @@
+@theme {
+  --color-canvas: #F6F1E7;
+  --color-surface: #FFFDF8;
+  --color-line: #E3DAC6;
+  --color-ink: #2B2A26;
+  --color-muted: #6B6455;
+  --color-primary: #1F3A2E;
+  --color-on-primary: #F6F1E7;
+  --color-gold: #B08D3C;
+  --color-leather: #6B4A2F;
+  --color-highlight: #EFE6D2;
+  --color-ok-bg: #DDE8D6;
+  --color-ok-text: #2F5A2A;
+  --color-warn-bg: #F3E4BF;
+  --color-warn-text: #7A5A12;
+  --color-danger-bg: #F1D6CF;
+  --color-danger-text: #8A2E1F;
+  --font-heading: Georgia, 'Times New Roman', serif;
+  --font-body: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --radius-control: 4px;
+  --radius-card: 6px;
+}
