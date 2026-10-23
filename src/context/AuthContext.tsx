@@ -9,6 +9,7 @@ import {
 import type { Session } from '@supabase/supabase-js'
 import { mensajeErrorSupabase } from '../lib/errores.ts'
 import { obtenerMembresias, type Membresia } from '../lib/membresias.ts'
+import { obtenerRoles, type Rol } from '../lib/roles.ts'
 import { supabase } from '../lib/supabase.ts'
 import { AuthContext, type AuthContextValue } from './auth-state.ts'
 
@@ -65,7 +66,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [membresias, setMembresias] = useState<Membresia[]>([])
   const [clubActual, setClubActual] = useState<Membresia | null>(null)
+  const [roles, setRoles] = useState<Rol[]>([])
   const sincronizarRef = useRef<Sincronizar>(async () => {})
+  const cargarRolesRef = useRef<(personaId: string) => Promise<void>>(async () => {})
   const membresiasRef = useRef<Membresia[]>([])
   const sesionRef = useRef<Session | null>(null)
 
@@ -77,14 +80,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let activo = true
     let ticket = 0
+    let ticketRoles = 0
+
+    const cargarRoles = async (personaId: string) => {
+      const actualRoles = ++ticketRoles
+      try {
+        const lista = await obtenerRoles(personaId)
+        if (!activo || actualRoles !== ticketRoles) return
+        setRoles(lista)
+        setErrorCarga(null)
+      } catch (error) {
+        if (!activo || actualRoles !== ticketRoles) return
+        setRoles([])
+        setErrorCarga(
+          error instanceof Error ? error.message : 'No se pudieron cargar tus roles.',
+        )
+      }
+    }
+
+    cargarRolesRef.current = cargarRoles
 
     const sincronizar: Sincronizar = async (session, clubId) => {
       const actual = ++ticket
 
       if (!session) {
         if (!activo || actual !== ticket) return
+        ticketRoles += 1
         setMembresias([])
         setClubActual(null)
+        setRoles([])
         setErrorCarga(null)
         setCargando(false)
         olvidarClub()
@@ -94,13 +118,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const lista = await obtenerMembresias(session.user.id)
         if (!activo || actual !== ticket) return
+        const club = resolverClub(lista, session.user.id, clubId)
         setMembresias(lista)
-        setClubActual(resolverClub(lista, session.user.id, clubId))
-        setErrorCarga(null)
+        setClubActual(club)
+        setRoles([])
+        if (!club) {
+          ticketRoles += 1
+          setErrorCarga(null)
+          return
+        }
+        await cargarRoles(club.persona_id)
       } catch (error) {
         if (!activo || actual !== ticket) return
+        ticketRoles += 1
         setMembresias([])
         setClubActual(null)
+        setRoles([])
         setErrorCarga(
           error instanceof Error ? error.message : 'No se pudieron cargar tus clubes.',
         )
@@ -135,7 +168,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const elegida = membresiasRef.current.find((item) => item.club_id === clubId)
     if (!usuarioId || !elegida) return
     setClubActual(elegida)
+    setRoles([])
     guardarClub(usuarioId, clubId)
+    void cargarRolesRef.current(elegida.persona_id)
   }, [])
 
   const recargarMembresias = useCallback(async (clubId?: string) => {
@@ -159,6 +194,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       errorCarga,
       membresias,
       clubActual,
+      roles,
+      tieneRol: (rol) => roles.includes(rol),
       elegirClub,
       recargarMembresias,
       cerrarSesion,
@@ -169,6 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       errorCarga,
       membresias,
       clubActual,
+      roles,
       elegirClub,
       recargarMembresias,
       cerrarSesion,
