@@ -3,6 +3,7 @@ import CrearClub from '../pages/CrearClub.tsx'
 import Cuadras from '../pages/Cuadras.tsx'
 import Design from '../pages/Design.tsx'
 import Inicio from '../pages/Inicio.tsx'
+import Personas from '../pages/Personas.tsx'
 import Invitacion from '../pages/Invitacion.tsx'
 import Login from '../pages/Login.tsx'
 import Registro from '../pages/Registro.tsx'
@@ -40,6 +41,7 @@ export function RutasAplicacion() {
         <Route element={<RutaDeLaApp />}>
           <Route path="/" element={<Inicio />} />
           <Route path="/cuadras" element={<Cuadras />} />
+          <Route path="/personas" element={<Personas />} />
           <Route path="/design" element={<Design />} />
         </Route>
         <Route path="*" element={<RutaDesconocida />} />

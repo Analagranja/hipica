@@ -1,5 +1,6 @@
-import { House, Palette, Warehouse, type LucideIcon } from 'lucide-react'
+import { House, Palette, Users, Warehouse, type LucideIcon } from 'lucide-react'
 import { NavLink } from 'react-router'
+import { useAuth } from '../../context/auth-state.ts'
 
 type NavItem = {
   to: string
@@ -7,18 +8,21 @@ type NavItem = {
   icon: LucideIcon
 }
 
-const items: NavItem[] = [
-  { to: '/', label: 'Inicio', icon: House },
-  { to: '/cuadras', label: 'Cuadras', icon: Warehouse },
-  { to: '/design', label: 'Diseño', icon: Palette },
-]
-
 type SidebarNavProps = {
   orientation?: 'vertical' | 'horizontal'
 }
 
 export function SidebarNav({ orientation = 'vertical' }: SidebarNavProps) {
+  const { tieneRol } = useAuth()
   const horizontal = orientation === 'horizontal'
+  const items: NavItem[] = [
+    { to: '/', label: 'Inicio', icon: House },
+    { to: '/cuadras', label: 'Cuadras', icon: Warehouse },
+    ...(tieneRol('administrador')
+      ? [{ to: '/personas', label: 'Personas', icon: Users }]
+      : []),
+    { to: '/design', label: 'Diseño', icon: Palette },
+  ]
 
   return (
     <nav aria-label="Principal">
@@ -34,13 +38,13 @@ export function SidebarNav({ orientation = 'vertical' }: SidebarNavProps) {
                 className={({ isActive }) =>
                   [
                     'flex items-center gap-2 rounded-control px-3 py-2 font-body',
-                    horizontal ? 'flex-col justify-center' : '',
+                    horizontal ? 'w-full min-w-0 flex-col justify-center' : '',
                     isActive ? 'bg-gold/20 text-canvas' : 'text-on-primary',
                   ].join(' ')
                 }
               >
-                <Icon className="text-gold" aria-hidden="true" />
-                <span>{item.label}</span>
+                <Icon className="shrink-0 text-gold" aria-hidden="true" />
+                <span className={horizontal ? 'max-w-full truncate' : undefined}>{item.label}</span>
               </NavLink>
             </li>
           )
