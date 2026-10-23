@@ -4,15 +4,7 @@ import { Button } from '../components/ui/Button.tsx'
 import { Card } from '../components/ui/Card.tsx'
 import { AppShell } from '../components/ui/AppShell.tsx'
 import { useAuth } from '../context/auth-state.ts'
-
-function leerDestino(state: unknown): string | null {
-  if (!state || typeof state !== 'object' || !('from' in state)) return null
-  const from = (state as { from?: unknown }).from
-  if (typeof from !== 'string') return null
-  if (!from.startsWith('/') || from.startsWith('//') || from.startsWith('/\\')) return null
-  if (from.startsWith('/login') || from.startsWith('/registro')) return null
-  return from
-}
+import { leerDestino } from '../lib/destino.ts'
 
 export function PantallaCarga() {
   return (

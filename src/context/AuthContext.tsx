@@ -139,11 +139,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const recargarMembresias = useCallback(async (clubId?: string) => {
-    setCargando(true)
     const { data, error } = await supabase.auth.getSession()
     if (error) {
       setErrorCarga(mensajeErrorSupabase(error))
-      setCargando(false)
       return
     }
     await sincronizarRef.current(data.session, clubId)
