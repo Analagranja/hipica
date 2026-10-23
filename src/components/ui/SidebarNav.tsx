@@ -1,4 +1,4 @@
-import { House, Palette, type LucideIcon } from 'lucide-react'
+import { House, Palette, Warehouse, type LucideIcon } from 'lucide-react'
 import { NavLink } from 'react-router'
 
 type NavItem = {
@@ -9,6 +9,7 @@ type NavItem = {
 
 const items: NavItem[] = [
   { to: '/', label: 'Inicio', icon: House },
+  { to: '/cuadras', label: 'Cuadras', icon: Warehouse },
   { to: '/design', label: 'Diseño', icon: Palette },
 ]
 

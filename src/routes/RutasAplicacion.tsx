@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router'
 import CrearClub from '../pages/CrearClub.tsx'
+import Cuadras from '../pages/Cuadras.tsx'
 import Design from '../pages/Design.tsx'
 import Inicio from '../pages/Inicio.tsx'
 import Invitacion from '../pages/Invitacion.tsx'
@@ -38,6 +39,7 @@ export function RutasAplicacion() {
         <Route path="/invitacion/:token" element={<Invitacion />} />
         <Route element={<RutaDeLaApp />}>
           <Route path="/" element={<Inicio />} />
+          <Route path="/cuadras" element={<Cuadras />} />
           <Route path="/design" element={<Design />} />
         </Route>
         <Route path="*" element={<RutaDesconocida />} />
