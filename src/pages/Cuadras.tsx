@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { Link } from 'react-router'
 import { Alert } from '../components/ui/Alert.tsx'
 import { Button } from '../components/ui/Button.tsx'
 import { Card } from '../components/ui/Card.tsx'
@@ -7,6 +8,7 @@ import { PageHeader } from '../components/ui/PageHeader.tsx'
 import { StatusBadge } from '../components/ui/StatusBadge.tsx'
 import { TextField } from '../components/ui/TextField.tsx'
 import { useAuth } from '../context/auth-state.ts'
+import { obtenerCaballosEnBoxes, type CaballoEnBox } from '../lib/caballos.ts'
 import {
   agregarBoxes,
   cambiarActivaCuadra,
@@ -23,6 +25,30 @@ import {
 
 function textoBoxes(cantidad: number): string {
   return cantidad === 1 ? '1 box' : `${cantidad} boxes`
+}
+
+function textoCantidad(cantidad: number, uno: string, varios: string): string {
+  return `${cantidad} ${cantidad === 1 ? uno : varios}`
+}
+
+function textoOcupacion(cuadra: Cuadra, porBox: Map<string, CaballoEnBox> | null): string {
+  const total = textoBoxes(cuadra.boxes.length)
+  if (!porBox) return total
+
+  let ocupados = 0
+  let disponibles = 0
+  let mantenimiento = 0
+  for (const box of cuadra.boxes) {
+    if (porBox.has(box.id)) ocupados += 1
+    else if (box.estado === 'mantenimiento') mantenimiento += 1
+    else disponibles += 1
+  }
+
+  return `${total}: ${textoCantidad(ocupados, 'ocupado', 'ocupados')}, ${textoCantidad(disponibles, 'disponible', 'disponibles')}, ${textoCantidad(mantenimiento, 'en mantenimiento', 'en mantenimiento')}`
+}
+
+function mapaPorBox(caballos: CaballoEnBox[]): Map<string, CaballoEnBox> {
+  return new Map(caballos.map((caballo) => [caballo.boxId, caballo]))
 }
 
 function mensajeDe(error: unknown): string {
@@ -49,6 +75,7 @@ const FORMULARIO_CERRADO = {
 type ListaCuadras = {
   clubId: string
   cuadras: Cuadra[]
+  porBox: Map<string, CaballoEnBox> | null
   error: string | null
 }
 
@@ -57,6 +84,8 @@ const SIN_ABIERTAS = new Set<string>()
 export default function Cuadras() {
   const { clubActual, tieneRol } = useAuth()
   const esAdmin = tieneRol('administrador')
+  const veOcupacion =
+    tieneRol('administrador') || tieneRol('profesor') || tieneRol('caballerizo')
   const clubId = clubActual?.club_id
   const clubIdRef = useRef(clubId)
   const ocupadoRef = useRef(false)
@@ -72,6 +101,7 @@ export default function Cuadras() {
   const [ocupado, setOcupado] = useState(false)
   const [errorAccion, setErrorAccion] = useState<{ clubId: string; mensaje: string } | null>(null)
   const cuadras = lista && lista.clubId === clubId ? lista.cuadras : []
+  const porBox = veOcupacion && lista && lista.clubId === clubId ? lista.porBox : null
   const cargandoLista = Boolean(clubId) && (!lista || lista.clubId !== clubId)
   const creando = formulario !== null && formulario.clubId === clubId && formulario.abierto
   const nombreNuevo = formulario !== null && formulario.clubId === clubId ? formulario.nombre : ''
@@ -100,20 +130,26 @@ export default function Cuadras() {
     let activo = true
     const club = clubId
 
-    void obtenerCuadras(club)
-      .then((cuadrasCargadas) => {
+    const ver = veOcupacion
+    void Promise.all([obtenerCuadras(club), ver ? obtenerCaballosEnBoxes(club) : Promise.resolve(null)])
+      .then(([cuadrasCargadas, caballos]) => {
         if (!activo) return
-        setLista({ clubId: club, cuadras: cuadrasCargadas, error: null })
+        setLista({
+          clubId: club,
+          cuadras: cuadrasCargadas,
+          porBox: caballos ? mapaPorBox(caballos) : null,
+          error: null,
+        })
       })
       .catch((causa: unknown) => {
         if (!activo) return
-        setLista({ clubId: club, cuadras: [], error: mensajeDe(causa) })
+        setLista({ clubId: club, cuadras: [], porBox: null, error: mensajeDe(causa) })
       })
 
     return () => {
       activo = false
     }
-  }, [clubId])
+  }, [clubId, veOcupacion])
 
   function informarError(mensaje: string) {
     if (!clubId) return
@@ -129,8 +165,14 @@ export default function Cuadras() {
     try {
       await accion()
       const cuadrasCargadas = await obtenerCuadras(clubDeLaAccion)
+      const caballos = veOcupacion ? await obtenerCaballosEnBoxes(clubDeLaAccion) : null
       if (clubIdRef.current !== clubDeLaAccion) return false
-      setLista({ clubId: clubDeLaAccion, cuadras: cuadrasCargadas, error: null })
+      setLista({
+        clubId: clubDeLaAccion,
+        cuadras: cuadrasCargadas,
+        porBox: caballos ? mapaPorBox(caballos) : null,
+        error: null,
+      })
       return true
     } catch (causa) {
       if (clubIdRef.current === clubDeLaAccion) {
@@ -314,6 +356,7 @@ export default function Cuadras() {
               esAdmin={esAdmin}
               abierta={abiertas.has(cuadra.id)}
               ocupado={ocupado}
+              porBox={porBox}
               onToggle={() => alternar(cuadra.id)}
               onAbrir={() => abrir(cuadra.id)}
               clubId={clubId ?? ''}
@@ -332,6 +375,7 @@ type FilaCuadraProps = {
   esAdmin: boolean
   abierta: boolean
   ocupado: boolean
+  porBox: Map<string, CaballoEnBox> | null
   onToggle: () => void
   onAbrir: () => void
   clubId: string
@@ -344,6 +388,7 @@ function FilaCuadra({
   esAdmin,
   abierta,
   ocupado,
+  porBox,
   onToggle,
   onAbrir,
   clubId,
@@ -426,7 +471,7 @@ function FilaCuadra({
           <StatusBadge tone={cuadra.activa ? 'ok' : 'warn'}>
             {cuadra.activa ? 'Activa' : 'Inactiva'}
           </StatusBadge>
-          <span className="font-body text-muted">{textoBoxes(cuadra.boxes.length)}</span>
+          <span className="font-body text-muted">{textoOcupacion(cuadra, porBox)}</span>
         </>
       }
       actions={
@@ -533,29 +578,41 @@ function FilaCuadra({
           <p className="font-body text-muted">Esta cuadra no tiene boxes.</p>
         ) : (
           <ul className="flex flex-col gap-3">
-            {cuadra.boxes.map((box) => (
-              <li
-                key={box.id}
-                className="flex flex-col gap-2 border-b border-line pb-3 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-body text-ink">Box {box.numero}</span>
-                  <StatusBadge tone={box.estado === 'activo' ? 'ok' : 'warn'}>
-                    {box.estado === 'activo' ? 'Activo' : 'Mantenimiento'}
-                  </StatusBadge>
-                </div>
-                {esAdmin ? (
-                  <Button
-                    variant="secondary"
-                    className="w-full sm:w-auto"
-                    disabled={ocupado}
-                    onClick={() => cambiarEstado(box.estado, box.id)}
-                  >
-                    {box.estado === 'activo' ? 'Pasar a mantenimiento' : 'Marcar activo'}
-                  </Button>
-                ) : null}
-              </li>
-            ))}
+            {cuadra.boxes.map((box) => {
+              const caballo = porBox?.get(box.id)
+
+              return (
+                <li
+                  key={box.id}
+                  className="flex flex-col gap-2 border-b border-line pb-3 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-body text-ink">Box {box.numero}</span>
+                    <StatusBadge tone={box.estado === 'activo' ? 'ok' : 'warn'}>
+                      {box.estado === 'activo' ? 'Activo' : 'Mantenimiento'}
+                    </StatusBadge>
+                    {caballo ? (
+                      <Link
+                        to={`/caballos/${caballo.id}`}
+                        className="font-body text-primary underline decoration-gold underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-gold"
+                      >
+                        {caballo.nombre}
+                      </Link>
+                    ) : null}
+                  </div>
+                  {esAdmin ? (
+                    <Button
+                      variant="secondary"
+                      className="w-full sm:w-auto"
+                      disabled={ocupado}
+                      onClick={() => cambiarEstado(box.estado, box.id)}
+                    >
+                      {box.estado === 'activo' ? 'Pasar a mantenimiento' : 'Marcar activo'}
+                    </Button>
+                  ) : null}
+                </li>
+              )
+            })}
           </ul>
         )}
 

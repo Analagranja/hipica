@@ -309,6 +309,32 @@ async function asegurarRolPropietario(personaId: string) {
   if (alta) throw new Error(mensajeErrorSupabase(alta))
 }
 
+export type CaballoEnBox = {
+  id: string
+  nombre: string
+  boxId: string
+}
+
+export async function obtenerCaballosEnBoxes(clubId: string): Promise<CaballoEnBox[]> {
+  const { data, error } = await supabase
+    .from('caballos')
+    .select('id, nombre, box_id')
+    .eq('club_id', clubId)
+    .eq('estado', 'activo')
+    .not('box_id', 'is', null)
+
+  if (error) throw new Error(mensajeErrorSupabase(error))
+
+  const lista: CaballoEnBox[] = []
+  const vistos = new Set<string>()
+  for (const fila of (data ?? []) as { id: string; nombre: string | null; box_id: string | null }[]) {
+    if (!fila.id || !fila.nombre || !fila.box_id || vistos.has(fila.box_id)) continue
+    vistos.add(fila.box_id)
+    lista.push({ id: fila.id, nombre: fila.nombre, boxId: fila.box_id })
+  }
+  return lista
+}
+
 export async function obtenerCaballos(clubId: string): Promise<Caballo[]> {
   const { data, error } = await supabase
     .from('caballos')
