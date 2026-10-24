@@ -5,9 +5,9 @@ type DatoFichaProps = {
 
 export function DatoFicha({ etiqueta, valor }: DatoFichaProps) {
   return (
-    <div className="flex flex-col gap-1 rounded-card bg-highlight/60 px-3 py-3">
-      <p className="font-body text-sm text-muted">{etiqueta}</p>
-      <p className="font-body whitespace-pre-wrap text-ink">{valor}</p>
+    <div className="overflow-hidden rounded-card border border-line">
+      <p className="bg-primary px-3 py-1.5 font-body text-[12px] text-on-primary">{etiqueta}</p>
+      <p className="bg-highlight px-3 py-2 font-body text-[15px] whitespace-pre-wrap text-ink">{valor}</p>
     </div>
   )
 }

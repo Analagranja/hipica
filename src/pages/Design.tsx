@@ -85,6 +85,12 @@ export default function Design() {
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <DatoFicha etiqueta="Nombre" valor="Relámpago" />
           <DatoFicha etiqueta="Raza" valor="Silla argentino" />
+          <div className="md:col-span-2">
+            <DatoFicha
+              etiqueta="Observaciones"
+              valor="Caballo de escuela. Tranquilo en la pista y en el box."
+            />
+          </div>
         </div>
       </section>
 
