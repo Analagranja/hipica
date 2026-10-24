@@ -4,8 +4,8 @@ import { Alert } from '../components/ui/Alert.tsx'
 import { Avatar } from '../components/ui/Avatar.tsx'
 import { Button } from '../components/ui/Button.tsx'
 import { Card } from '../components/ui/Card.tsx'
+import { DatoFicha } from '../components/ui/DatoFicha.tsx'
 import { PageHeader } from '../components/ui/PageHeader.tsx'
-import { StatusBadge } from '../components/ui/StatusBadge.tsx'
 import { useAuth } from '../context/auth-state.ts'
 import {
   actualizarCaballo,
@@ -65,15 +65,6 @@ function datosDe(caballo: Caballo): DatosCaballo {
     numeroRegistro: caballo.numeroRegistro ?? '',
     observaciones: caballo.observaciones ?? '',
   }
-}
-
-function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <dt className="font-body text-muted">{etiqueta}</dt>
-      <dd className="font-body whitespace-pre-wrap text-ink">{valor}</dd>
-    </div>
-  )
 }
 
 export default function Caballo() {
@@ -243,37 +234,30 @@ export default function Caballo() {
                   Cancelar
                 </Button>
               ) : (
-                <dl className="grid w-full gap-4 sm:grid-cols-2">
-                  <Dato etiqueta="Tipo" valor={etiquetaTipo(caballo.tipo)} />
-                  <div className="flex flex-col gap-1">
-                    <dt className="font-body text-muted">Estado</dt>
-                    <dd>
-                      <StatusBadge tone={caballo.estado === 'activo' ? 'ok' : 'danger'}>
-                        {etiquetaEstado(caballo.estado)}
-                      </StatusBadge>
-                    </dd>
-                  </div>
-                  <Dato etiqueta="Propietario" valor={textoPropietario(caballo)} />
-                  <Dato etiqueta="Cuadra" valor={caballo.ubicacion?.cuadraNombre ?? 'Sin cuadra'} />
-                  <Dato
+                <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-2">
+                  <DatoFicha etiqueta="Tipo" valor={etiquetaTipo(caballo.tipo)} />
+                  <DatoFicha etiqueta="Estado" valor={etiquetaEstado(caballo.estado)} />
+                  <DatoFicha etiqueta="Propietario" valor={textoPropietario(caballo)} />
+                  <DatoFicha etiqueta="Cuadra" valor={caballo.ubicacion?.cuadraNombre ?? 'Sin cuadra'} />
+                  <DatoFicha
                     etiqueta="Box"
                     valor={caballo.ubicacion ? `Box ${caballo.ubicacion.numero}` : 'Sin box'}
                   />
-                  <Dato etiqueta="Nacimiento" valor={textoFecha(caballo.nacimiento)} />
-                  <Dato etiqueta="Raza" valor={textoOpcional(caballo.raza, 'Sin raza')} />
-                  <Dato etiqueta="Pelaje" valor={textoOpcional(caballo.pelaje, 'Sin pelaje')} />
-                  <Dato etiqueta="Sexo" valor={etiquetaSexo(caballo.sexo)} />
-                  <Dato
+                  <DatoFicha etiqueta="Nacimiento" valor={textoFecha(caballo.nacimiento)} />
+                  <DatoFicha etiqueta="Raza" valor={textoOpcional(caballo.raza, 'Sin raza')} />
+                  <DatoFicha etiqueta="Pelaje" valor={textoOpcional(caballo.pelaje, 'Sin pelaje')} />
+                  <DatoFicha etiqueta="Sexo" valor={etiquetaSexo(caballo.sexo)} />
+                  <DatoFicha
                     etiqueta="Número de registro"
                     valor={textoOpcional(caballo.numeroRegistro, 'Sin número')}
                   />
-                  <div className="sm:col-span-2">
-                    <Dato
+                  <div className="md:col-span-2">
+                    <DatoFicha
                       etiqueta="Observaciones"
                       valor={textoOpcional(caballo.observaciones, 'Sin observaciones')}
                     />
                   </div>
-                </dl>
+                </div>
               )}
             </div>
           </Card>

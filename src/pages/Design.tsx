@@ -1,5 +1,6 @@
 import { Button } from '../components/ui/Button.tsx'
 import { Card } from '../components/ui/Card.tsx'
+import { DatoFicha } from '../components/ui/DatoFicha.tsx'
 import { MetricCard } from '../components/ui/MetricCard.tsx'
 import { PageHeader } from '../components/ui/PageHeader.tsx'
 import { StatusBadge } from '../components/ui/StatusBadge.tsx'
@@ -76,6 +77,14 @@ export default function Design() {
           <MetricCard label="Muestra A" value="24" detail="Dato de ejemplo" />
           <MetricCard label="Muestra B" value="8" detail="Dato de ejemplo" />
           <MetricCard label="Muestra C" value="3" detail="Dato de ejemplo" />
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2>Ficha</h2>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <DatoFicha etiqueta="Nombre" valor="Relámpago" />
+          <DatoFicha etiqueta="Raza" valor="Silla argentino" />
         </div>
       </section>
 

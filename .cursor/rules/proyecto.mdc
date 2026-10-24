@@ -4,3 +4,5 @@ alwaysApply: true
 ---
 
 App de gestión de clubes hípicos, multiclub. Idioma de la interfaz: español. Sin relación con ningún otro proyecto.
+
+Para mostrar cualquier par etiqueta-valor (fichas, detalles) usar siempre el componente DatoFicha; no crear estilos propios para eso.
