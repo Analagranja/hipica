@@ -6,6 +6,7 @@ type TextFieldProps = {
   disabled?: boolean
   autoComplete?: string
   type?: 'text' | 'date'
+  inputMode?: 'text' | 'numeric'
 }
 
 export function TextField({
@@ -16,6 +17,7 @@ export function TextField({
   disabled = false,
   autoComplete = 'off',
   type = 'text',
+  inputMode = 'text',
 }: TextFieldProps) {
   return (
     <label htmlFor={id} className="flex flex-col gap-2 font-body text-ink">
@@ -24,6 +26,7 @@ export function TextField({
         id={id}
         name={id}
         type={type}
+        inputMode={inputMode}
         autoComplete={autoComplete}
         value={value}
         disabled={disabled}

@@ -8,12 +8,15 @@ import { StatusBadge } from '../components/ui/StatusBadge.tsx'
 import { TextField } from '../components/ui/TextField.tsx'
 import { useAuth } from '../context/auth-state.ts'
 import {
+  agregarBoxes,
   cambiarActivaCuadra,
   cambiarEstadoBox,
   crearBox,
-  crearCuadra,
+  crearCuadraConBoxes,
+  numerosDeBoxes,
   obtenerCuadras,
   renombrarCuadra,
+  textoVistaPrevia,
   type Cuadra,
   type EstadoBox,
 } from '../lib/cuadras.ts'
@@ -26,7 +29,22 @@ function mensajeDe(error: unknown): string {
   return error instanceof Error ? error.message : 'No se pudo completar la acción. Intentá de nuevo.'
 }
 
-type Ejecutar = (accion: () => Promise<void>) => Promise<boolean>
+type Ejecutar = (accion: () => Promise<unknown>) => Promise<boolean>
+
+function leerCantidad(valor: string, minimo: number, maximo: number): number | null {
+  const limpio = valor.trim()
+  if (!/^\d+$/.test(limpio)) return null
+  const numero = Number(limpio)
+  if (!Number.isInteger(numero) || numero < minimo || numero > maximo) return null
+  return numero
+}
+
+const FORMULARIO_CERRADO = {
+  abierto: false,
+  nombre: '',
+  cantidad: '0',
+  prefijo: '',
+}
 
 type ListaCuadras = {
   clubId: string
@@ -48,6 +66,8 @@ export default function Cuadras() {
     clubId: string
     abierto: boolean
     nombre: string
+    cantidad: string
+    prefijo: string
   } | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [errorAccion, setErrorAccion] = useState<{ clubId: string; mensaje: string } | null>(null)
@@ -55,6 +75,14 @@ export default function Cuadras() {
   const cargandoLista = Boolean(clubId) && (!lista || lista.clubId !== clubId)
   const creando = formulario !== null && formulario.clubId === clubId && formulario.abierto
   const nombreNuevo = formulario !== null && formulario.clubId === clubId ? formulario.nombre : ''
+  const cantidadNueva =
+    formulario !== null && formulario.clubId === clubId ? formulario.cantidad : '0'
+  const prefijoNuevo = formulario !== null && formulario.clubId === clubId ? formulario.prefijo : ''
+  const cantidadCrear = leerCantidad(cantidadNueva, 0, 100)
+  const vistaCrear =
+    cantidadCrear !== null && cantidadCrear > 0
+      ? textoVistaPrevia(numerosDeBoxes([], cantidadCrear, prefijoNuevo), prefijoNuevo)
+      : ''
   const abiertas = paneles !== null && paneles.clubId === clubId ? paneles.ids : SIN_ABIERTAS
   const error =
     errorAccion !== null && errorAccion.clubId === clubId
@@ -92,7 +120,7 @@ export default function Cuadras() {
     setErrorAccion({ clubId, mensaje })
   }
 
-  async function ejecutar(accion: () => Promise<void>): Promise<boolean> {
+  async function ejecutar(accion: () => Promise<unknown>): Promise<boolean> {
     if (!clubId || ocupadoRef.current) return false
     const clubDeLaAccion = clubId
     ocupadoRef.current = true
@@ -123,8 +151,17 @@ export default function Cuadras() {
       informarError('Ingresá el nombre de la cuadra.')
       return
     }
-    const ok = await ejecutar(() => crearCuadra(clubId, nombre))
-    if (ok) setFormulario({ clubId, abierto: false, nombre: '' })
+    if (cantidadCrear === null) {
+      informarError('La cantidad tiene que ser un entero de 0 a 100.')
+      return
+    }
+    const resultado = { aviso: null as string | null }
+    const ok = await ejecutar(async () => {
+      resultado.aviso = await crearCuadraConBoxes(clubId, nombre, cantidadCrear, prefijoNuevo)
+    })
+    if (!ok || !clubId) return
+    setFormulario({ clubId, ...FORMULARIO_CERRADO })
+    if (resultado.aviso) informarError(resultado.aviso)
   }
 
   function cambiarPaneles(actualizar: (ids: Set<string>) => Set<string>) {
@@ -164,6 +201,8 @@ export default function Cuadras() {
                   clubId,
                   abierto: !creando,
                   nombre: creando ? '' : nombreNuevo,
+                  cantidad: creando ? '0' : cantidadNueva,
+                  prefijo: creando ? '' : prefijoNuevo,
                 })
                 setErrorAccion(null)
               }}
@@ -185,10 +224,59 @@ export default function Cuadras() {
               value={nombreNuevo}
               onChange={(valor) => {
                 if (!clubId) return
-                setFormulario({ clubId, abierto: true, nombre: valor })
+                setFormulario({
+                  clubId,
+                  abierto: true,
+                  nombre: valor,
+                  cantidad: cantidadNueva,
+                  prefijo: prefijoNuevo,
+                })
               }}
               disabled={ocupado}
             />
+            <TextField
+              id="cantidad-cuadra"
+              label="Cantidad de boxes"
+              value={cantidadNueva}
+              inputMode="numeric"
+              onChange={(valor) => {
+                if (!clubId) return
+                setFormulario({
+                  clubId,
+                  abierto: true,
+                  nombre: nombreNuevo,
+                  cantidad: valor,
+                  prefijo: prefijoNuevo,
+                })
+              }}
+              disabled={ocupado}
+            />
+            <TextField
+              id="prefijo-cuadra"
+              label="Prefijo"
+              value={prefijoNuevo}
+              onChange={(valor) => {
+                if (!clubId) return
+                setFormulario({
+                  clubId,
+                  abierto: true,
+                  nombre: nombreNuevo,
+                  cantidad: cantidadNueva,
+                  prefijo: valor,
+                })
+              }}
+              disabled={ocupado}
+            />
+            {cantidadNueva.trim() !== '' && cantidadCrear === null ? (
+              <p className="font-body text-danger-text">
+                La cantidad tiene que ser un entero de 0 a 100.
+              </p>
+            ) : null}
+            {vistaCrear ? (
+              <p className="font-body text-ink" role="status">
+                {vistaCrear}
+              </p>
+            ) : null}
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button type="submit" className="w-full sm:w-auto" disabled={ocupado}>
                 Crear cuadra
@@ -199,7 +287,7 @@ export default function Cuadras() {
                 disabled={ocupado}
                 onClick={() => {
                   if (!clubId) return
-                  setFormulario({ clubId, abierto: false, nombre: '' })
+                  setFormulario({ clubId, ...FORMULARIO_CERRADO })
                 }}
               >
                 Cancelar
@@ -265,6 +353,20 @@ function FilaCuadra({
   const [editando, setEditando] = useState(false)
   const [nombre, setNombre] = useState(cuadra.nombre)
   const [numero, setNumero] = useState('')
+  const [cantidad, setCantidad] = useState('')
+  const [prefijo, setPrefijo] = useState('')
+  const cantidadNumero = leerCantidad(cantidad, 1, 100)
+  const vista =
+    cantidadNumero === null
+      ? ''
+      : textoVistaPrevia(
+          numerosDeBoxes(
+            cuadra.boxes.map((box) => box.numero),
+            cantidadNumero,
+            prefijo,
+          ),
+          prefijo,
+        )
 
   async function guardarNombre(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -286,6 +388,27 @@ function FilaCuadra({
     }
     const ok = await onEjecutar(() => crearBox(clubId, cuadra.id, limpio))
     if (ok) setNumero('')
+  }
+
+  async function guardarVarios(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (cantidadNumero === null) {
+      onError('La cantidad tiene que ser un entero de 1 a 100.')
+      return
+    }
+    const ok = await onEjecutar(() =>
+      agregarBoxes(
+        clubId,
+        cuadra.id,
+        cuadra.boxes.map((box) => box.numero),
+        cantidadNumero,
+        prefijo,
+      ),
+    )
+    if (ok) {
+      setCantidad('')
+      setPrefijo('')
+    }
   }
 
   function cambiarEstado(estado: EstadoBox, boxId: string) {
@@ -315,6 +438,8 @@ function FilaCuadra({
               disabled={ocupado}
               onClick={() => {
                 setNombre(cuadra.nombre)
+                setCantidad('')
+                setPrefijo('')
                 setEditando(true)
                 onAbrir()
               }}
@@ -359,6 +484,48 @@ function FilaCuadra({
                 Cancelar
               </Button>
             </div>
+          </form>
+        ) : null}
+
+        {editando ? (
+          <form
+            className="flex flex-col gap-3 border-t border-line pt-4"
+            noValidate
+            onSubmit={(event) => void guardarVarios(event)}
+          >
+            <h3 className="text-lg">Agregar boxes</h3>
+            <TextField
+              id={`cantidad-${cuadra.id}`}
+              label="Cantidad"
+              value={cantidad}
+              inputMode="numeric"
+              onChange={setCantidad}
+              disabled={ocupado}
+            />
+            <TextField
+              id={`prefijo-${cuadra.id}`}
+              label="Prefijo"
+              value={prefijo}
+              onChange={setPrefijo}
+              disabled={ocupado}
+            />
+            {cantidad.trim() !== '' && cantidadNumero === null ? (
+              <p className="font-body text-danger-text">
+                La cantidad tiene que ser un entero de 1 a 100.
+              </p>
+            ) : null}
+            {vista ? (
+              <p className="font-body text-ink" role="status">
+                {vista}
+              </p>
+            ) : null}
+            <Button
+              type="submit"
+              className="w-full sm:w-auto"
+              disabled={ocupado || cantidadNumero === null}
+            >
+              Crear boxes
+            </Button>
           </form>
         ) : null}
 
