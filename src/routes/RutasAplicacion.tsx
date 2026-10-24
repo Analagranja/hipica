@@ -1,4 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router'
+import Caballo from '../pages/Caballo.tsx'
+import Caballos from '../pages/Caballos.tsx'
 import CrearClub from '../pages/CrearClub.tsx'
 import Cuadras from '../pages/Cuadras.tsx'
 import Design from '../pages/Design.tsx'
@@ -41,6 +43,8 @@ export function RutasAplicacion() {
         <Route element={<RutaDeLaApp />}>
           <Route path="/" element={<Inicio />} />
           <Route path="/cuadras" element={<Cuadras />} />
+          <Route path="/caballos" element={<Caballos />} />
+          <Route path="/caballos/:id" element={<Caballo />} />
           <Route path="/personas" element={<Personas />} />
           <Route path="/design" element={<Design />} />
         </Route>

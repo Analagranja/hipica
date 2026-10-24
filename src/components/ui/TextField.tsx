@@ -5,6 +5,7 @@ type TextFieldProps = {
   onChange: (value: string) => void
   disabled?: boolean
   autoComplete?: string
+  type?: 'text' | 'date'
 }
 
 export function TextField({
@@ -14,6 +15,7 @@ export function TextField({
   onChange,
   disabled = false,
   autoComplete = 'off',
+  type = 'text',
 }: TextFieldProps) {
   return (
     <label htmlFor={id} className="flex flex-col gap-2 font-body text-ink">
@@ -21,7 +23,7 @@ export function TextField({
       <input
         id={id}
         name={id}
-        type="text"
+        type={type}
         autoComplete={autoComplete}
         value={value}
         disabled={disabled}

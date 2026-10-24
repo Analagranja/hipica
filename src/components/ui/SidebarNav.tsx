@@ -1,4 +1,4 @@
-import { House, Palette, Users, Warehouse, type LucideIcon } from 'lucide-react'
+import { Fence, House, Palette, Users, Warehouse, type LucideIcon } from 'lucide-react'
 import { NavLink } from 'react-router'
 import { useAuth } from '../../context/auth-state.ts'
 
@@ -15,9 +15,15 @@ type SidebarNavProps = {
 export function SidebarNav({ orientation = 'vertical' }: SidebarNavProps) {
   const { tieneRol } = useAuth()
   const horizontal = orientation === 'horizontal'
+  const veCaballos =
+    tieneRol('administrador') ||
+    tieneRol('profesor') ||
+    tieneRol('caballerizo') ||
+    tieneRol('propietario')
   const items: NavItem[] = [
     { to: '/', label: 'Inicio', icon: House },
     { to: '/cuadras', label: 'Cuadras', icon: Warehouse },
+    ...(veCaballos ? [{ to: '/caballos', label: 'Caballos', icon: Fence }] : []),
     ...(tieneRol('administrador')
       ? [{ to: '/personas', label: 'Personas', icon: Users }]
       : []),

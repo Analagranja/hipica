@@ -1,6 +1,11 @@
-type SelectOption = {
+export type SelectOption = {
   value: string
   label: string
+}
+
+export type SelectGroup = {
+  label: string
+  options: SelectOption[]
 }
 
 type SelectProps = {
@@ -9,6 +14,7 @@ type SelectProps = {
   value: string
   onChange: (value: string) => void
   options: SelectOption[]
+  groups?: SelectGroup[]
   disabled?: boolean
 }
 
@@ -18,6 +24,7 @@ export function Select({
   value,
   onChange,
   options,
+  groups,
   disabled = false,
 }: SelectProps) {
   return (
@@ -35,6 +42,15 @@ export function Select({
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
+        ))}
+        {groups?.map((group, index) => (
+          <optgroup key={`${group.label}-${index}`} label={group.label}>
+            {group.options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </optgroup>
         ))}
       </select>
     </label>
