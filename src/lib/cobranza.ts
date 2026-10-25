@@ -27,7 +27,6 @@ export type DatosConcepto = {
   nombre: string
   categoria: CategoriaConcepto
   montoSugerido: number
-  titular: TitularConcepto
 }
 
 export type PensionLista = {
@@ -139,6 +138,10 @@ export function etiquetaCategoria(categoria: CategoriaConcepto): string {
 
 export function etiquetaTitular(titular: TitularConcepto): string {
   return titular === 'profesor' ? 'Profesor' : 'Club'
+}
+
+export function etiquetaEstadoPension(estado: EstadoPension): string {
+  return estado === 'activa' ? 'Activa' : 'De baja'
 }
 
 function aIso(fecha: Date): string {
@@ -345,13 +348,11 @@ function datosConcepto(datos: DatosConcepto) {
   const nombre = datos.nombre.trim()
   if (!nombre) throw new Error('Ingresá el nombre.')
   if (!esCategoria(datos.categoria)) throw new Error('Elegí una categoría.')
-  if (!esTitular(datos.titular)) throw new Error('Elegí el titular.')
   if (!Number.isFinite(datos.montoSugerido)) throw new Error('Ingresá el monto sugerido.')
   return {
     nombre,
     categoria: datos.categoria,
     monto_sugerido: redondear(datos.montoSugerido),
-    titular: datos.titular,
   }
 }
 
@@ -535,16 +536,86 @@ export async function crearPension(clubId: string, datos: DatosPension): Promise
   return id
 }
 
-export async function finalizarPension(clubId: string, pensionId: string): Promise<void> {
+export async function finalizarPension(
+  clubId: string,
+  pensionId: string,
+  fin: string,
+): Promise<void> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fin)) throw new Error('Ingresá la fecha de baja.')
+
+  const { data: actual, error: errorLectura } = await supabase
+    .from('pensiones')
+    .select('inicio')
+    .eq('id', pensionId)
+    .eq('club_id', clubId)
+    .eq('estado', 'activa')
+    .maybeSingle()
+
+  if (errorLectura) throw new Error(mensajeErrorSupabase(errorLectura))
+  const inicio = (actual as { inicio: string | null } | null)?.inicio?.slice(0, 10)
+  if (!inicio) throw new Error('No se encontró la pensión.')
+  if (fin < inicio) throw new Error('La fecha de baja no puede ser anterior al inicio.')
+
   const { data, error } = await supabase
     .from('pensiones')
-    .update({ estado: 'finalizada', fin: fechaHoy() })
+    .update({ estado: 'finalizada', fin })
     .eq('id', pensionId)
     .eq('club_id', clubId)
     .eq('estado', 'activa')
     .select('id')
 
   exigirFilas(data as { id: string }[] | null, error, 'pension')
+}
+
+export type ItemAltaPension = {
+  conceptoId: string
+  monto: number
+}
+
+export async function crearPensionConItems(
+  clubId: string,
+  datos: DatosPension,
+  items: ItemAltaPension[],
+): Promise<string> {
+  const preparados = items.map((item) => {
+    if (!item.conceptoId) throw new Error('Elegí un concepto.')
+    return {
+      concepto_id: item.conceptoId,
+      monto: montoItem(item.monto),
+      vigente_desde: datos.inicio,
+    }
+  })
+
+  const id = await crearPension(clubId, datos)
+  if (preparados.length === 0) return id
+
+  const alta = await supabase
+    .from('pension_items')
+    .insert(
+      preparados.map((item) => ({
+        club_id: clubId,
+        pension_id: id,
+        ...item,
+      })),
+    )
+    .select('id')
+
+  if (alta.error || !alta.data || (alta.data as { id: string }[]).length !== preparados.length) {
+    const { error: errorBorrado } = await supabase
+      .from('pensiones')
+      .delete()
+      .eq('id', id)
+      .eq('club_id', clubId)
+    const mensaje = alta.error
+      ? mensajeDe(alta.error, 'item')
+      : 'No se pudieron guardar los ítems.'
+    if (errorBorrado) {
+      throw new Error(`${mensaje} La pensión quedó creada y hay que revisarla.`)
+    }
+    throw new Error(mensaje)
+  }
+
+  return id
 }
 
 export async function agregarItemPension(

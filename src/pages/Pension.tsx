@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router'
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router'
 import { Alert } from '../components/ui/Alert.tsx'
 import { Button } from '../components/ui/Button.tsx'
 import { Card } from '../components/ui/Card.tsx'
@@ -12,6 +12,7 @@ import { useAuth } from '../context/auth-state.ts'
 import {
   agregarItemPension,
   cambiarMontoItem,
+  etiquetaEstadoPension,
   fechaHoy,
   finalizarPension,
   obtenerConceptos,
@@ -54,13 +55,16 @@ function totalVigente(items: ItemPension[]): number {
     .reduce((suma, item) => suma + item.monto, 0)
 }
 
-function etiquetaEstado(estado: PensionDetalle['estado']): string {
-  return estado === 'activa' ? 'Activa' : 'Finalizada'
+function leerAviso(state: unknown): string | null {
+  if (!state || typeof state !== 'object' || !('aviso' in state)) return null
+  const aviso = (state as { aviso: unknown }).aviso
+  return typeof aviso === 'string' && aviso ? aviso : null
 }
 
 export default function Pension() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { clubActual } = useAuth()
   const clubId = clubActual?.club_id
   const clave = clubId && id ? `${clubId}:${id}` : ''
@@ -68,7 +72,8 @@ export default function Pension() {
   const ocupadoRef = useRef(false)
   const [carga, setCarga] = useState<Carga | null>(null)
   const [alta, setAlta] = useState<{ clave: string; abierta: boolean; datos: AltaItem } | null>(null)
-  const [finalizar, setFinalizar] = useState<string | null>(null)
+  const [baja, setBaja] = useState<{ clave: string; fecha: string } | null>(null)
+  const [aviso, setAviso] = useState<{ clave: string; mensaje: string | null } | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [errorAccion, setErrorAccion] = useState<{ clave: string; mensaje: string } | null>(null)
 
@@ -82,6 +87,8 @@ export default function Pension() {
       : lista
         ? lista.error
         : null
+  const mensajeOk = aviso && aviso.clave === clave ? aviso.mensaje : leerAviso(location.state)
+  const bajaActual = baja !== null && baja.clave === clave ? baja : null
   const hoy = fechaHoy()
   const vigentes = (pension?.items ?? []).filter(
     (item) => item.vigenteHasta === null || item.vigenteHasta >= hoy,
@@ -123,7 +130,7 @@ export default function Pension() {
     }
   }, [clubId, id])
 
-  async function ejecutar(accion: () => Promise<unknown>): Promise<boolean> {
+  async function ejecutar(accion: () => Promise<unknown>, exito?: string): Promise<boolean> {
     if (!clubId || !id || ocupadoRef.current) return false
     const clubDeLaAccion = clubId
     const pensionId = id
@@ -131,6 +138,7 @@ export default function Pension() {
     ocupadoRef.current = true
     setOcupado(true)
     setErrorAccion(null)
+    setAviso({ clave: claveAccion, mensaje: null })
     try {
       await accion()
       const [fresca, conceptosCargados] = await Promise.all([
@@ -144,6 +152,7 @@ export default function Pension() {
         conceptos: conceptosCargados,
         error: null,
       })
+      if (exito) setAviso({ clave: claveAccion, mensaje: exito })
       return true
     } catch (causa) {
       if (clubIdRef.current === clubDeLaAccion) {
@@ -154,6 +163,11 @@ export default function Pension() {
       ocupadoRef.current = false
       setOcupado(false)
     }
+  }
+
+  function informar(mensaje: string) {
+    setErrorAccion({ clave, mensaje })
+    setAviso({ clave, mensaje: null })
   }
 
   function abrirAlta() {
@@ -176,24 +190,25 @@ export default function Pension() {
     if (!clubId || !id || !altaActual?.abierta) return
     const datos = altaActual.datos
     if (!datos.conceptoId) {
-      setErrorAccion({ clave, mensaje: 'Elegí un concepto.' })
+      informar('Elegí un concepto.')
       return
     }
     const monto = leerMonto(datos.monto)
     if (monto === null) {
-      setErrorAccion({ clave, mensaje: 'Ingresá un monto.' })
+      informar('Ingresá un monto.')
       return
     }
     if (monto === 0) {
-      setErrorAccion({ clave, mensaje: 'El monto no puede ser cero.' })
+      informar('El monto no puede ser cero.')
       return
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(datos.desde)) {
-      setErrorAccion({ clave, mensaje: 'Ingresá desde cuándo rige el ítem.' })
+      informar('Ingresá desde cuándo rige el ítem.')
       return
     }
-    const ok = await ejecutar(() =>
-      agregarItemPension(clubId, id, datos.conceptoId, monto, datos.desde),
+    const ok = await ejecutar(
+      () => agregarItemPension(clubId, id, datos.conceptoId, monto, datos.desde),
+      'Ítem agregado',
     )
     if (ok) setAlta({ clave, abierta: false, datos })
   }
@@ -216,6 +231,7 @@ export default function Pension() {
         }
       />
 
+      {mensajeOk ? <Alert tone="ok">{mensajeOk}</Alert> : null}
       {error ? <Alert tone="danger">{error}</Alert> : null}
 
       {cargando ? (
@@ -233,9 +249,12 @@ export default function Pension() {
             <DatoFicha etiqueta="Responsable" valor={pension.responsableNombre} />
             <DatoFicha etiqueta="Día de vencimiento" valor={String(pension.diaVencimiento)} />
             <DatoFicha etiqueta="Inicio" valor={textoFecha(pension.inicio)} />
-            <DatoFicha etiqueta="Fin" valor={pension.fin ? textoFecha(pension.fin) : 'Sin fin'} />
-            <DatoFicha etiqueta="Estado" valor={etiquetaEstado(pension.estado)} />
-            <DatoFicha etiqueta="Total vigente" valor={pesos(totalVigente(pension.items))} />
+            <DatoFicha etiqueta="Fecha de baja" valor={pension.fin ? textoFecha(pension.fin) : 'Sin fecha'} />
+            <DatoFicha etiqueta="Estado" valor={etiquetaEstadoPension(pension.estado)} />
+            <DatoFicha
+              etiqueta="Total mensual vigente"
+              valor={pesos(totalVigente(pension.items))}
+            />
           </div>
 
           <section className="flex flex-col gap-4">
@@ -250,7 +269,10 @@ export default function Pension() {
                   item={item}
                   ocupado={ocupado}
                   onEjecutar={ejecutar}
-                  onError={(mensaje) => setErrorAccion({ clave, mensaje })}
+                  onError={(mensaje) => {
+                    setErrorAccion({ clave, mensaje })
+                    setAviso({ clave, mensaje: null })
+                  }}
                 />
               ))
             )}
@@ -337,48 +359,65 @@ export default function Pension() {
             </Button>
           )}
 
-          {pension.estado === 'activa' && finalizar === clave ? (
-            <Card>
-              <p className="font-body text-ink">Se va a finalizar la pensión hoy.</p>
-              {pension.inicio > fechaHoy() ? (
-                <p className="mt-2 font-body text-muted">
-                  La fecha de fin no puede ser anterior al inicio.
-                </p>
-              ) : null}
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          {pension.estado === 'activa' ? (
+            <section className="flex flex-col gap-4">
+              <h2 className="text-lg">Baja de la pensión</h2>
+              <p className="font-body text-ink">
+                Desde la fecha de baja no se generarán más cargos. Los cargos ya generados no cambian.
+                El caballo podrá tener una pensión nueva.
+              </p>
+              {bajaActual ? (
+                <Card>
+                  <div className="flex flex-col gap-4">
+                    <TextField
+                      id="fecha-baja"
+                      label="Fecha de baja"
+                      type="date"
+                      value={bajaActual.fecha}
+                      disabled={ocupado}
+                      onChange={(fecha) => setBaja({ clave, fecha })}
+                    />
+                    {bajaActual.fecha && bajaActual.fecha < pension.inicio ? (
+                      <p className="font-body text-muted">
+                        La fecha de baja no puede ser anterior al inicio.
+                      </p>
+                    ) : null}
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button
+                        className="w-full sm:w-auto"
+                        disabled={ocupado || !bajaActual.fecha || bajaActual.fecha < pension.inicio}
+                        onClick={() => {
+                          if (!clubId || !bajaActual.fecha || bajaActual.fecha < pension.inicio) return
+                          const fecha = bajaActual.fecha
+                          void ejecutar(() => finalizarPension(clubId, pension.id, fecha)).then((ok) => {
+                            if (ok) setBaja(null)
+                          })
+                        }}
+                      >
+                        Confirmar baja
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="w-full sm:w-auto"
+                        disabled={ocupado}
+                        onClick={() => setBaja(null)}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ) : (
                 <Button
-                  className="w-full sm:w-auto"
-                  disabled={ocupado || pension.inicio > fechaHoy()}
-                  onClick={() => {
-                    if (!clubId || pension.inicio > fechaHoy()) return
-                    void ejecutar(() => finalizarPension(clubId, pension.id)).then((ok) => {
-                      if (ok) setFinalizar(null)
-                    })
-                  }}
-                >
-                  Confirmar
-                </Button>
-                <Button
-                  variant="ghost"
+                  variant="secondary"
                   className="w-full sm:w-auto"
                   disabled={ocupado}
-                  onClick={() => setFinalizar(null)}
+                  onClick={() => setBaja({ clave, fecha: fechaHoy() })}
                 >
-                  Cancelar
+                  Dar de baja la pensión
                 </Button>
-              </div>
-            </Card>
-          ) : null}
-
-          {pension.estado === 'activa' && finalizar !== clave ? (
-            <Button
-              variant="secondary"
-              className="w-full sm:w-auto"
-              disabled={ocupado}
-              onClick={() => setFinalizar(clave)}
-            >
-              Finalizar pensión
-            </Button>
+              )}
+            </section>
           ) : null}
         </>
       )}
@@ -409,7 +448,7 @@ type FilaProps = {
   clubId: string
   item: ItemPension
   ocupado: boolean
-  onEjecutar: (accion: () => Promise<unknown>) => Promise<boolean>
+  onEjecutar: (accion: () => Promise<unknown>, exito: string) => Promise<boolean>
   onError: (mensaje: string) => void
 }
 
@@ -440,7 +479,10 @@ function FilaItem({ clubId, item, ocupado, onEjecutar, onError }: FilaProps) {
       onError('Ingresá desde cuándo rige el monto.')
       return
     }
-    const ok = await onEjecutar(() => cambiarMontoItem(clubId, item.id, nuevo, desde))
+    const ok = await onEjecutar(
+      () => cambiarMontoItem(clubId, item.id, nuevo, desde),
+      'Monto actualizado',
+    )
     if (ok) setModo('ver')
   }
 
@@ -515,7 +557,7 @@ function FilaItem({ clubId, item, ocupado, onEjecutar, onError }: FilaProps) {
               className="w-full sm:w-auto"
               disabled={ocupado}
               onClick={() => {
-                void onEjecutar(() => quitarItem(clubId, item.id)).then((ok) => {
+                void onEjecutar(() => quitarItem(clubId, item.id), 'Ítem quitado').then((ok) => {
                   if (ok) setModo('ver')
                 })
               }}

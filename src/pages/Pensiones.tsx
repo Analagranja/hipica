@@ -6,7 +6,13 @@ import { Select } from '../components/ui/Select.tsx'
 import { StatusBadge } from '../components/ui/StatusBadge.tsx'
 import { TextField } from '../components/ui/TextField.tsx'
 import { useAuth } from '../context/auth-state.ts'
-import { obtenerPensiones, pesos, type EstadoPension, type PensionLista } from '../lib/cobranza.ts'
+import {
+  etiquetaEstadoPension,
+  obtenerPensiones,
+  pesos,
+  type EstadoPension,
+  type PensionLista,
+} from '../lib/cobranza.ts'
 
 type FiltroEstado = EstadoPension
 
@@ -18,10 +24,6 @@ type Lista = {
 
 function mensajeDe(error: unknown): string {
   return error instanceof Error ? error.message : 'No se pudo completar la acción. Intentá de nuevo.'
-}
-
-function etiquetaEstado(estado: EstadoPension): string {
-  return estado === 'activa' ? 'Activa' : 'Finalizada'
 }
 
 export default function Pensiones() {
@@ -81,7 +83,7 @@ export default function Pensiones() {
           onChange={(valor) => setFiltro(valor === 'finalizada' ? 'finalizada' : 'activa')}
           options={[
             { value: 'activa', label: 'Activas' },
-            { value: 'finalizada', label: 'Finalizadas' },
+            { value: 'finalizada', label: 'De baja' },
           ]}
         />
       </div>
@@ -109,7 +111,7 @@ export default function Pensiones() {
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-lg">{pension.caballoNombre}</h2>
                   <StatusBadge tone={pension.estado === 'activa' ? 'ok' : 'warn'}>
-                    {etiquetaEstado(pension.estado)}
+                    {etiquetaEstadoPension(pension.estado)}
                   </StatusBadge>
                 </div>
                 <p className="mt-2 font-body text-muted">{pension.responsableNombre}</p>

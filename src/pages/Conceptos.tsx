@@ -12,12 +12,10 @@ import {
   cambiarActivoConcepto,
   crearConcepto,
   etiquetaCategoria,
-  etiquetaTitular,
   obtenerConceptos,
   pesos,
   type CategoriaConcepto,
   type Concepto,
-  type TitularConcepto,
 } from '../lib/cobranza.ts'
 import { leerMonto, textoMonto } from './texto-monto.ts'
 
@@ -32,20 +30,16 @@ const CATEGORIAS: CategoriaConcepto[] = [
   'otro',
 ]
 
-const TITULARES: TitularConcepto[] = ['club', 'profesor']
-
 type DatosFormulario = {
   nombre: string
   categoria: CategoriaConcepto
   monto: string
-  titular: TitularConcepto
 }
 
 const VACIO: DatosFormulario = {
   nombre: '',
-  categoria: 'pension',
+  categoria: 'otro',
   monto: '',
-  titular: 'club',
 }
 
 type Lista = {
@@ -67,7 +61,6 @@ function datosDe(concepto: Concepto): DatosFormulario {
     nombre: concepto.nombre,
     categoria: concepto.categoria,
     monto: textoMonto(concepto.montoSugerido),
-    titular: concepto.titular,
   }
 }
 
@@ -176,7 +169,6 @@ export default function Conceptos() {
         nombre: datosNuevos.nombre,
         categoria: datosNuevos.categoria,
         montoSugerido: monto,
-        titular: datosNuevos.titular,
       }),
     )
     if (ok) setFormulario({ clubId, abierto: false, datos: VACIO })
@@ -260,7 +252,6 @@ export default function Conceptos() {
                           nombre: edicion.datos.nombre,
                           categoria: edicion.datos.categoria,
                           montoSugerido: monto,
-                          titular: edicion.datos.titular,
                         }),
                       ).then((ok) => {
                         if (ok) setEdicion(null)
@@ -273,7 +264,6 @@ export default function Conceptos() {
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-lg">{concepto.nombre}</h2>
                       <Tag>{etiquetaCategoria(concepto.categoria)}</Tag>
-                      <Tag>{etiquetaTitular(concepto.titular)}</Tag>
                       <StatusBadge tone={concepto.activo ? 'ok' : 'warn'}>
                         {concepto.activo ? 'Activo' : 'Inactivo'}
                       </StatusBadge>
@@ -349,19 +339,24 @@ function FormularioConcepto({
         disabled={ocupado}
         onChange={(nombre) => onChange({ ...datos, nombre })}
       />
-      <Select
-        id={`${idPrefijo}-categoria`}
-        label="Categoría"
-        value={datos.categoria}
-        disabled={ocupado}
-        options={CATEGORIAS.map((categoria) => ({
-          value: categoria,
-          label: etiquetaCategoria(categoria),
-        }))}
-        onChange={(valor) => {
-          if (esCategoria(valor)) onChange({ ...datos, categoria: valor })
-        }}
-      />
+      <div className="flex flex-col gap-2">
+        <Select
+          id={`${idPrefijo}-categoria`}
+          label="Categoría"
+          value={datos.categoria}
+          disabled={ocupado}
+          options={CATEGORIAS.map((categoria) => ({
+            value: categoria,
+            label: etiquetaCategoria(categoria),
+          }))}
+          onChange={(valor) => {
+            if (esCategoria(valor)) onChange({ ...datos, categoria: valor })
+          }}
+        />
+        <p className="font-body text-muted">
+          Sirve para agrupar en los reportes, por ejemplo cuánto ingresó por derecho de pista
+        </p>
+      </div>
       <TextField
         id={`${idPrefijo}-monto`}
         label="Monto sugerido"
@@ -369,17 +364,6 @@ function FormularioConcepto({
         disabled={ocupado}
         inputMode="decimal"
         onChange={(monto) => onChange({ ...datos, monto })}
-      />
-      <Select
-        id={`${idPrefijo}-titular`}
-        label="Titular"
-        value={datos.titular}
-        disabled={ocupado}
-        options={TITULARES.map((titular) => ({
-          value: titular,
-          label: etiquetaTitular(titular),
-        }))}
-        onChange={(valor) => onChange({ ...datos, titular: valor === 'profesor' ? 'profesor' : 'club' })}
       />
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button type="submit" className="w-full sm:w-auto" disabled={ocupado}>

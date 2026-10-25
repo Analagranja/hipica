@@ -12,19 +12,29 @@ import {
   type PersonaActiva,
 } from '../lib/caballos.ts'
 import {
-  crearPension,
+  crearPensionConItems,
   fechaHoy,
+  obtenerConceptos,
   obtenerPensionActivaDeCaballo,
   pesos,
+  type Concepto,
   type PensionResumen,
 } from '../lib/cobranza.ts'
 import { etiquetaPersona, textoFecha } from './texto-caballo.ts'
+import { leerMonto, textoMonto } from './texto-monto.ts'
 
 type Carga = {
   clave: string
   pension: PensionResumen | null
   personas: PersonaActiva[]
+  conceptos: Concepto[]
   error: string | null
+}
+
+type FilaItem = {
+  clave: string
+  conceptoId: string
+  monto: string
 }
 
 type Formulario = {
@@ -33,6 +43,7 @@ type Formulario = {
   responsableId: string
   dia: string
   inicio: string
+  items: FilaItem[]
 }
 
 const DIAS = Array.from({ length: 28 }, (_, indice) => String(indice + 1))
@@ -55,11 +66,21 @@ function opcionesResponsable(personas: PersonaActiva[], caballo: Caballo) {
   return opciones
 }
 
+function totalItems(items: FilaItem[]): number {
+  const total = items.reduce((suma, item) => {
+    const monto = leerMonto(item.monto)
+    if (monto === null || monto === 0) return suma
+    return suma + monto
+  }, 0)
+  return Math.round(total * 100) / 100
+}
+
 export function SeccionPension({ clubId, caballo }: { clubId: string; caballo: Caballo }) {
   const navigate = useNavigate()
   const clave = `${clubId}:${caballo.id}`
   const clubIdRef = useRef(clubId)
   const ocupadoRef = useRef(false)
+  const filaRef = useRef(0)
   const [carga, setCarga] = useState<Carga | null>(null)
   const [formulario, setFormulario] = useState<Formulario | null>(null)
   const [ocupado, setOcupado] = useState(false)
@@ -68,6 +89,7 @@ export function SeccionPension({ clubId, caballo }: { clubId: string; caballo: C
   const lista = carga && carga.clave === clave ? carga : null
   const cargando = !lista
   const pension = lista?.pension ?? null
+  const conceptos = (lista?.conceptos ?? []).filter((concepto) => concepto.activo)
   const opciones = opcionesResponsable(lista?.personas ?? [], caballo)
   const form = formulario !== null && formulario.clave === clave ? formulario : null
   const error =
@@ -86,14 +108,27 @@ export function SeccionPension({ clubId, caballo }: { clubId: string; caballo: C
     void Promise.all([
       obtenerPensionActivaDeCaballo(club, caballoId),
       obtenerPersonasActivas(club),
+      obtenerConceptos(club),
     ])
-      .then(([pensionCargada, personas]) => {
+      .then(([pensionCargada, personas, conceptosCargados]) => {
         if (!activo) return
-        setCarga({ clave: claveCarga, pension: pensionCargada, personas, error: null })
+        setCarga({
+          clave: claveCarga,
+          pension: pensionCargada,
+          personas,
+          conceptos: conceptosCargados,
+          error: null,
+        })
       })
       .catch((causa: unknown) => {
         if (!activo) return
-        setCarga({ clave: claveCarga, pension: null, personas: [], error: mensajeDe(causa) })
+        setCarga({
+          clave: claveCarga,
+          pension: null,
+          personas: [],
+          conceptos: [],
+          error: mensajeDe(causa),
+        })
       })
 
     return () => {
@@ -101,12 +136,13 @@ export function SeccionPension({ clubId, caballo }: { clubId: string; caballo: C
     }
   }, [clubId, caballo.id])
 
-  async function recargar(): Promise<PensionResumen | null> {
-    const pensionCargada = await obtenerPensionActivaDeCaballo(clubId, caballo.id)
-    const personas = carga?.clave === clave ? carga.personas : await obtenerPersonasActivas(clubId)
-    if (clubIdRef.current !== clubId) return pensionCargada
-    setCarga({ clave, pension: pensionCargada, personas, error: null })
-    return pensionCargada
+  function filaNueva(concepto?: Concepto): FilaItem {
+    filaRef.current += 1
+    return {
+      clave: String(filaRef.current),
+      conceptoId: concepto?.id ?? '',
+      monto: concepto ? textoMonto(concepto.montoSugerido) : '',
+    }
   }
 
   function abrir() {
@@ -120,8 +156,14 @@ export function SeccionPension({ clubId, caballo }: { clubId: string; caballo: C
       responsableId: responsable,
       dia: '10',
       inicio: fechaHoy(),
+      items: conceptos[0] ? [filaNueva(conceptos[0])] : [],
     })
     setErrorAccion(null)
+  }
+
+  function cambiarItems(items: FilaItem[]) {
+    if (!form) return
+    setFormulario({ ...form, items })
   }
 
   async function guardar(event: FormEvent<HTMLFormElement>) {
@@ -144,31 +186,43 @@ export function SeccionPension({ clubId, caballo }: { clubId: string; caballo: C
       return
     }
 
+    const items = []
+    for (const item of form.items) {
+      if (!item.conceptoId) {
+        setErrorAccion({ clave, mensaje: 'Elegí un concepto.' })
+        return
+      }
+      const monto = leerMonto(item.monto)
+      if (monto === null) {
+        setErrorAccion({ clave, mensaje: 'Ingresá un monto.' })
+        return
+      }
+      if (monto === 0) {
+        setErrorAccion({ clave, mensaje: 'El monto no puede ser cero.' })
+        return
+      }
+      items.push({ conceptoId: item.conceptoId, monto })
+    }
+
     ocupadoRef.current = true
     setOcupado(true)
     setErrorAccion(null)
     try {
-      await crearPension(clubId, {
-        caballoId: caballo.id,
-        responsableId,
-        diaVencimiento: dia,
-        inicio: form.inicio,
-      })
+      const id = await crearPensionConItems(
+        clubId,
+        {
+          caballoId: caballo.id,
+          responsableId,
+          diaVencimiento: dia,
+          inicio: form.inicio,
+        },
+        items,
+      )
       if (clubIdRef.current !== clubId) return
-      await recargar()
-      setFormulario({ ...form, abierto: false })
+      navigate(`/cobranza/pensiones/${id}`, { state: { aviso: 'Pensión guardada' } })
     } catch (causa) {
       if (clubIdRef.current !== clubId) return
-      const mensaje = mensajeDe(causa)
-      if (mensaje === 'Este caballo ya tiene una pensión activa') {
-        try {
-          await recargar()
-          setFormulario({ ...form, abierto: false })
-        } catch {
-          // La pensión ya existe; el mensaje de abajo lo explica si no se puede releer.
-        }
-      }
-      setErrorAccion({ clave, mensaje })
+      setErrorAccion({ clave, mensaje: mensajeDe(causa) })
     } finally {
       ocupadoRef.current = false
       setOcupado(false)
@@ -194,7 +248,7 @@ export function SeccionPension({ clubId, caballo }: { clubId: string; caballo: C
             <DatoFicha etiqueta="Responsable" valor={pension.responsableNombre} />
             <DatoFicha etiqueta="Día de vencimiento" valor={String(pension.diaVencimiento)} />
             <DatoFicha etiqueta="Inicio" valor={textoFecha(pension.inicio)} />
-            <DatoFicha etiqueta="Total vigente" valor={pesos(pension.totalVigente)} />
+            <DatoFicha etiqueta="Total mensual vigente" valor={pesos(pension.totalVigente)} />
           </div>
           <Button
             variant="secondary"
@@ -238,9 +292,80 @@ export function SeccionPension({ clubId, caballo }: { clubId: string; caballo: C
             disabled={ocupado}
             onChange={(inicio) => setFormulario({ ...form, inicio })}
           />
+
+          <div className="flex flex-col gap-4">
+            <h3 className="text-lg">Ítems</h3>
+            {form.items.length === 0 ? (
+              <p className="font-body text-muted">Todavía no hay ítems.</p>
+            ) : (
+              form.items.map((item) => (
+                <div key={item.clave} className="flex flex-col gap-3 border-t border-line pt-4">
+                  <Select
+                    id={`pension-concepto-${item.clave}`}
+                    label="Concepto"
+                    value={item.conceptoId}
+                    disabled={ocupado || conceptos.length === 0}
+                    options={conceptos.map((concepto) => ({
+                      value: concepto.id,
+                      label: concepto.nombre,
+                    }))}
+                    onChange={(conceptoId) => {
+                      const concepto = conceptos.find((actual) => actual.id === conceptoId)
+                      cambiarItems(
+                        form.items.map((actual) =>
+                          actual.clave === item.clave
+                            ? {
+                                ...actual,
+                                conceptoId,
+                                monto: concepto ? textoMonto(concepto.montoSugerido) : actual.monto,
+                              }
+                            : actual,
+                        ),
+                      )
+                    }}
+                  />
+                  <TextField
+                    id={`pension-monto-${item.clave}`}
+                    label="Monto"
+                    value={item.monto}
+                    disabled={ocupado}
+                    inputMode="decimal"
+                    onChange={(monto) =>
+                      cambiarItems(
+                        form.items.map((actual) =>
+                          actual.clave === item.clave ? { ...actual, monto } : actual,
+                        ),
+                      )
+                    }
+                  />
+                  <Button
+                    variant="ghost"
+                    className="w-full sm:w-auto"
+                    disabled={ocupado}
+                    onClick={() => cambiarItems(form.items.filter((actual) => actual.clave !== item.clave))}
+                  >
+                    Quitar
+                  </Button>
+                </div>
+              ))
+            )}
+            <Button
+              variant="secondary"
+              className="w-full sm:w-auto"
+              disabled={ocupado || conceptos.length === 0}
+              onClick={() => cambiarItems([...form.items, filaNueva(conceptos[0])])}
+            >
+              Agregar ítem
+            </Button>
+            {conceptos.length === 0 ? (
+              <p className="font-body text-muted">No hay conceptos activos.</p>
+            ) : null}
+            <DatoFicha etiqueta="Total mensual" valor={pesos(totalItems(form.items))} />
+          </div>
+
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button type="submit" className="w-full sm:w-auto" disabled={ocupado || opciones.length === 0}>
-              Crear pensión
+              Guardar pensión
             </Button>
             <Button
               variant="ghost"
