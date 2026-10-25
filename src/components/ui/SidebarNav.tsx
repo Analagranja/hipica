@@ -1,4 +1,4 @@
-import { Fence, House, Palette, Users, Warehouse, type LucideIcon } from 'lucide-react'
+import { Fence, House, Palette, Users, Wallet, Warehouse, type LucideIcon } from 'lucide-react'
 import { NavLink } from 'react-router'
 import { useAuth } from '../../context/auth-state.ts'
 
@@ -25,7 +25,10 @@ export function SidebarNav({ orientation = 'vertical' }: SidebarNavProps) {
     { to: '/cuadras', label: 'Cuadras', icon: Warehouse },
     ...(veCaballos ? [{ to: '/caballos', label: 'Caballos', icon: Fence }] : []),
     ...(tieneRol('administrador')
-      ? [{ to: '/personas', label: 'Personas', icon: Users }]
+      ? [
+          { to: '/personas', label: 'Personas', icon: Users },
+          { to: '/cobranza', label: 'Cobranza', icon: Wallet },
+        ]
       : []),
     { to: '/design', label: 'Diseño', icon: Palette },
   ]
