@@ -440,6 +440,59 @@ async function armarPensiones(clubId: string, filas: FilaPension[]): Promise<Pen
   return lista
 }
 
+export async function obtenerPensionesDeResponsable(
+  clubId: string,
+  personaId: string,
+): Promise<PensionLista[]> {
+  const { data, error } = await supabase
+    .from('pensiones')
+    .select('id, caballo_id, responsable_id, dia_vencimiento, inicio, fin, estado')
+    .eq('club_id', clubId)
+    .eq('responsable_id', personaId)
+
+  if (error) throw new Error(mensajeErrorSupabase(error))
+  return armarPensiones(clubId, (data ?? []) as FilaPension[])
+}
+
+export type CargoEmitido = {
+  id: string
+  periodo: string
+  vencimiento: string
+  total: number
+}
+
+export async function obtenerCargosDePersona(
+  clubId: string,
+  personaId: string,
+): Promise<CargoEmitido[]> {
+  const { data, error } = await supabase
+    .from('cargos')
+    .select('id, periodo, vencimiento, total')
+    .eq('club_id', clubId)
+    .eq('persona_id', personaId)
+    .neq('estado', 'anulado')
+    .order('periodo', { ascending: false })
+    .order('vencimiento', { ascending: false })
+
+  if (error) throw new Error(mensajeErrorSupabase(error))
+
+  return ((data ?? []) as {
+    id: string
+    periodo: string | null
+    vencimiento: string | null
+    total: number | string | null
+  }[]).flatMap((fila) => {
+    if (!fila.id || !fila.periodo || !fila.vencimiento) return []
+    const cargo: CargoEmitido = {
+      id: fila.id,
+      periodo: fila.periodo.slice(0, 10),
+      vencimiento: fila.vencimiento.slice(0, 10),
+      total: comoNumero(fila.total),
+    }
+    return [cargo]
+  })
+}
+
 export async function obtenerPensiones(clubId: string): Promise<PensionLista[]> {
   const { data, error } = await supabase
     .from('pensiones')
@@ -601,15 +654,16 @@ export async function crearPensionConItems(
     .select('id')
 
   if (alta.error || !alta.data || (alta.data as { id: string }[]).length !== preparados.length) {
-    const { error: errorBorrado } = await supabase
+    const borrado = await supabase
       .from('pensiones')
       .delete()
       .eq('id', id)
       .eq('club_id', clubId)
+      .select('id')
     const mensaje = alta.error
       ? mensajeDe(alta.error, 'item')
       : 'No se pudieron guardar los ítems.'
-    if (errorBorrado) {
+    if (borrado.error || !borrado.data || (borrado.data as { id: string }[]).length === 0) {
       throw new Error(`${mensaje} La pensión quedó creada y hay que revisarla.`)
     }
     throw new Error(mensaje)

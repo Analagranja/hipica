@@ -8,6 +8,7 @@ import Cuadras from '../pages/Cuadras.tsx'
 import Design from '../pages/Design.tsx'
 import Inicio from '../pages/Inicio.tsx'
 import Pension from '../pages/Pension.tsx'
+import Persona from '../pages/Persona.tsx'
 import Pensiones from '../pages/Pensiones.tsx'
 import Personas from '../pages/Personas.tsx'
 import Invitacion from '../pages/Invitacion.tsx'
@@ -50,6 +51,7 @@ export function RutasAplicacion() {
           <Route path="/caballos" element={<Caballos />} />
           <Route path="/caballos/:id" element={<Caballo />} />
           <Route path="/personas" element={<Personas />} />
+          <Route path="/personas/:id" element={<Persona />} />
           <Route path="/cobranza" element={<Cobranza />}>
             <Route index element={<Navigate to="conceptos" replace />} />
             <Route path="conceptos" element={<Conceptos />} />

@@ -335,6 +335,20 @@ export async function obtenerCaballosEnBoxes(clubId: string): Promise<CaballoEnB
   return lista
 }
 
+export async function obtenerCaballosDePropietario(
+  clubId: string,
+  personaId: string,
+): Promise<Caballo[]> {
+  const { data, error } = await supabase
+    .from('caballos')
+    .select(COLUMNAS)
+    .eq('club_id', clubId)
+    .eq('propietario_id', personaId)
+
+  if (error) throw new Error(mensajeErrorSupabase(error))
+  return ordenar(await complementar(clubId, (data ?? []) as FilaCaballo[]))
+}
+
 export async function obtenerCaballos(clubId: string): Promise<Caballo[]> {
   const { data, error } = await supabase
     .from('caballos')

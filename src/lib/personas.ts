@@ -180,6 +180,51 @@ function armarPersona(
   }
 }
 
+export async function obtenerPersona(clubId: string, personaId: string): Promise<PersonaClub | null> {
+  const { data, error } = await supabase
+    .from('personas')
+    .select('id, nombre, apellido, telefono, email, documento, activa')
+    .eq('club_id', clubId)
+    .eq('id', personaId)
+    .maybeSingle()
+
+  if (error) {
+    if (error.code === '22P02') return null
+    throw new Error(mensajeErrorSupabase(error))
+  }
+  if (!data) return null
+
+  const fila = data as FilaPersona
+  const [roles, membresias, invitaciones] = await Promise.all([
+    rolesDe([fila.id]),
+    supabase
+      .from('membresias')
+      .select('persona_id, activa')
+      .eq('club_id', clubId)
+      .eq('persona_id', fila.id),
+    supabase
+      .from('invitaciones')
+      .select('id, persona_id, email, token, estado, created_at')
+      .eq('club_id', clubId)
+      .eq('persona_id', fila.id)
+      .eq('estado', 'pendiente')
+      .order('created_at', { ascending: false })
+      .limit(1),
+  ])
+
+  if (membresias.error) throw new Error(mensajeErrorSupabase(membresias.error))
+  if (invitaciones.error) throw new Error(mensajeErrorSupabase(invitaciones.error))
+
+  const conAcceso = ((membresias.data ?? []) as FilaMembresia[]).some((membresia) => membresia.activa)
+  const pendiente = ((invitaciones.data ?? []) as FilaInvitacion[])[0]
+  const invitacion =
+    pendiente?.id && pendiente.token && pendiente.email
+      ? { id: pendiente.id, token: pendiente.token, email: pendiente.email }
+      : null
+
+  return armarPersona(fila, roles.get(fila.id) ?? [], conAcceso, invitacion)
+}
+
 export async function obtenerPersonas(clubId: string): Promise<PersonaClub[]> {
   const [personas, membresias, invitaciones] = await Promise.all([
     supabase
