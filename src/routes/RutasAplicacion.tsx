@@ -1,10 +1,14 @@
-import { BrowserRouter, Route, Routes } from 'react-router'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import Caballo from '../pages/Caballo.tsx'
 import Caballos from '../pages/Caballos.tsx'
+import Cobranza from '../pages/Cobranza.tsx'
+import Conceptos from '../pages/Conceptos.tsx'
 import CrearClub from '../pages/CrearClub.tsx'
 import Cuadras from '../pages/Cuadras.tsx'
 import Design from '../pages/Design.tsx'
 import Inicio from '../pages/Inicio.tsx'
+import Pension from '../pages/Pension.tsx'
+import Pensiones from '../pages/Pensiones.tsx'
 import Personas from '../pages/Personas.tsx'
 import Invitacion from '../pages/Invitacion.tsx'
 import Login from '../pages/Login.tsx'
@@ -46,6 +50,12 @@ export function RutasAplicacion() {
           <Route path="/caballos" element={<Caballos />} />
           <Route path="/caballos/:id" element={<Caballo />} />
           <Route path="/personas" element={<Personas />} />
+          <Route path="/cobranza" element={<Cobranza />}>
+            <Route index element={<Navigate to="conceptos" replace />} />
+            <Route path="conceptos" element={<Conceptos />} />
+            <Route path="pensiones" element={<Pensiones />} />
+            <Route path="pensiones/:id" element={<Pension />} />
+          </Route>
           <Route path="/design" element={<Design />} />
         </Route>
         <Route path="*" element={<RutaDesconocida />} />

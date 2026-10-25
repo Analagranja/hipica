@@ -21,6 +21,7 @@ import {
 } from '../lib/caballos.ts'
 import { prepararFoto } from '../lib/foto.ts'
 import { FormularioCaballo } from './FormularioCaballo.tsx'
+import { SeccionPension } from './SeccionPension.tsx'
 import {
   etiquetaEstado,
   etiquetaSexo,
@@ -261,6 +262,10 @@ export default function Caballo() {
               )}
             </div>
           </Card>
+
+          {esAdmin && !editando && caballo.tipo === 'particular' && caballo.estado === 'activo' && clubId ? (
+            <SeccionPension clubId={clubId} caballo={caballo} />
+          ) : null}
 
           {esAdmin && !editando ? (
             <div className="flex flex-col gap-2 sm:flex-row">

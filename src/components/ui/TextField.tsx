@@ -6,7 +6,7 @@ type TextFieldProps = {
   disabled?: boolean
   autoComplete?: string
   type?: 'text' | 'date'
-  inputMode?: 'text' | 'numeric'
+  inputMode?: 'text' | 'numeric' | 'decimal'
 }
 
 export function TextField({
