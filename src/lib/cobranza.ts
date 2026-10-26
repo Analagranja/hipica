@@ -40,6 +40,7 @@ export type PensionLista = {
   estado: EstadoPension
   inicio: string
   fin: string | null
+  caballoDeBaja: boolean
 }
 
 export type ItemPension = {
@@ -61,6 +62,7 @@ export type PensionDetalle = {
   inicio: string
   fin: string | null
   estado: EstadoPension
+  caballoDeBaja: boolean
   items: ItemPension[]
 }
 
@@ -230,17 +232,20 @@ function montoItem(monto: number): number {
   return redondo
 }
 
-async function nombresCaballos(clubId: string, ids: string[]): Promise<Map<string, string>> {
-  const mapa = new Map<string, string>()
+async function nombresCaballos(
+  clubId: string,
+  ids: string[],
+): Promise<Map<string, { nombre: string; deBaja: boolean }>> {
+  const mapa = new Map<string, { nombre: string; deBaja: boolean }>()
   if (ids.length === 0) return mapa
   const { data, error } = await supabase
     .from('caballos')
-    .select('id, nombre')
+    .select('id, nombre, estado')
     .eq('club_id', clubId)
     .in('id', ids)
   if (error) throw new Error(mensajeErrorSupabase(error))
-  for (const fila of (data ?? []) as { id: string; nombre: string | null }[]) {
-    if (fila.id && fila.nombre) mapa.set(fila.id, fila.nombre)
+  for (const fila of (data ?? []) as { id: string; nombre: string | null; estado: string | null }[]) {
+    if (fila.id && fila.nombre) mapa.set(fila.id, { nombre: fila.nombre, deBaja: fila.estado === 'baja' })
   }
   return mapa
 }
@@ -421,10 +426,12 @@ async function armarPensiones(clubId: string, filas: FilaPension[]): Promise<Pen
     if (!fila.id || !fila.caballo_id || !fila.responsable_id || !fila.inicio || !esEstado(fila.estado)) {
       return []
     }
+    const caballo = caballos.get(fila.caballo_id)
     const pension: PensionLista = {
       id: fila.id,
       caballoId: fila.caballo_id,
-      caballoNombre: caballos.get(fila.caballo_id) ?? 'Caballo',
+      caballoNombre: caballo?.nombre ?? 'Caballo',
+      caballoDeBaja: caballo?.deBaja ?? false,
       responsableId: fila.responsable_id,
       responsableNombre: personas.get(fila.responsable_id) ?? 'Responsable',
       totalVigente: totalHoy(items.get(fila.id) ?? [], hoy),
@@ -533,6 +540,7 @@ export async function obtenerPension(clubId: string, pensionId: string): Promise
     inicio: armada.inicio,
     fin: armada.fin,
     estado: armada.estado,
+    caballoDeBaja: armada.caballoDeBaja,
     items,
   }
 }

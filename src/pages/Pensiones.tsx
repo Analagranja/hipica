@@ -113,6 +113,9 @@ export default function Pensiones() {
                   <StatusBadge tone={pension.estado === 'activa' ? 'ok' : 'warn'}>
                     {etiquetaEstadoPension(pension.estado)}
                   </StatusBadge>
+                  {pension.estado === 'activa' && pension.caballoDeBaja ? (
+                    <StatusBadge tone="warn">Caballo de baja</StatusBadge>
+                  ) : null}
                 </div>
                 <p className="mt-2 font-body text-muted">{pension.responsableNombre}</p>
                 <p className="font-body text-ink">{pesos(pension.totalVigente)}</p>

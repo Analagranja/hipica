@@ -6,6 +6,7 @@ import { Card } from '../components/ui/Card.tsx'
 import { DatoFicha } from '../components/ui/DatoFicha.tsx'
 import { Disclosure } from '../components/ui/Disclosure.tsx'
 import { PageHeader } from '../components/ui/PageHeader.tsx'
+import { StatusBadge } from '../components/ui/StatusBadge.tsx'
 import { Select } from '../components/ui/Select.tsx'
 import { TextField } from '../components/ui/TextField.tsx'
 import { useAuth } from '../context/auth-state.ts'
@@ -230,6 +231,10 @@ export default function Pension() {
           </Button>
         }
       />
+
+      {pension?.estado === 'activa' && pension.caballoDeBaja ? (
+        <StatusBadge tone="warn">Caballo de baja</StatusBadge>
+      ) : null}
 
       {mensajeOk ? <Alert tone="ok">{mensajeOk}</Alert> : null}
       {error ? <Alert tone="danger">{error}</Alert> : null}

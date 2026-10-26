@@ -8,7 +8,7 @@ type CheckboxProps = {
 
 export function Checkbox({ id, label, checked, onChange, disabled = false }: CheckboxProps) {
   return (
-    <label htmlFor={id} className="flex items-center gap-2 font-body text-ink">
+    <label htmlFor={id} className="flex items-start gap-2 font-body text-ink">
       <input
         id={id}
         name={id}
@@ -16,9 +16,9 @@ export function Checkbox({ id, label, checked, onChange, disabled = false }: Che
         checked={checked}
         disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
-        className="size-4 accent-primary disabled:opacity-60"
+        className="mt-1 size-4 shrink-0 accent-primary disabled:opacity-60"
       />
-      {label}
+      <span>{label}</span>
     </label>
   )
 }

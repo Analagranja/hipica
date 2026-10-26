@@ -4,6 +4,7 @@ import { Alert } from '../components/ui/Alert.tsx'
 import { Avatar } from '../components/ui/Avatar.tsx'
 import { Button } from '../components/ui/Button.tsx'
 import { Card } from '../components/ui/Card.tsx'
+import { Checkbox } from '../components/ui/Checkbox.tsx'
 import { DatoFicha } from '../components/ui/DatoFicha.tsx'
 import { PageHeader } from '../components/ui/PageHeader.tsx'
 import { useAuth } from '../context/auth-state.ts'
@@ -19,6 +20,7 @@ import {
   type DatosCaballo,
   type PersonaActiva,
 } from '../lib/caballos.ts'
+import { fechaHoy, finalizarPension, obtenerPensionActivaDeCaballo, pesos, type PensionResumen } from '../lib/cobranza.ts'
 import { prepararFoto } from '../lib/foto.ts'
 import { FormularioCaballo } from './FormularioCaballo.tsx'
 import { SeccionPension } from './SeccionPension.tsx'
@@ -48,6 +50,15 @@ type Opciones = {
   boxes: BoxDisponible[]
   error: string | null
 }
+
+type ConsultaPension = {
+  clave: string
+  pension: PensionResumen | null
+  error: string | null
+}
+
+const MENSAJE_PENSION_PENDIENTE =
+  'El caballo se dio de baja, pero no se pudo dar de baja la pensión. Hacelo desde el detalle de la pensión'
 
 function mensajeDe(error: unknown): string {
   return error instanceof Error ? error.message : 'No se pudo completar la acción. Intentá de nuevo.'
@@ -81,6 +92,9 @@ export default function Caballo() {
   const [edicion, setEdicion] = useState<Edicion | null>(null)
   const [opciones, setOpciones] = useState<Opciones | null>(null)
   const [baja, setBaja] = useState<string | null>(null)
+  const [consultaPension, setConsultaPension] = useState<ConsultaPension | null>(null)
+  const [darBajaPension, setDarBajaPension] = useState(true)
+  const [aviso, setAviso] = useState<{ clave: string; mensaje: string } | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [errorAccion, setErrorAccion] = useState<{ clave: string; mensaje: string } | null>(null)
   const caballo = ficha && ficha.clave === clave ? ficha.caballo : null
@@ -89,6 +103,10 @@ export default function Caballo() {
   const datos = editando && edicion ? edicion.datos : null
   const opcionesListas = opciones !== null && opciones.clave === clave ? opciones : null
   const confirmando = baja === clave
+  const consulta = consultaPension && consultaPension.clave === clave ? consultaPension : null
+  const pensionActiva = consulta?.pension ?? null
+  const consultandoPension = confirmando && !consulta
+  const mensajeOk = aviso && aviso.clave === clave ? aviso.mensaje : null
   const error =
     errorAccion !== null && errorAccion.clave === clave
       ? errorAccion.mensaje
@@ -146,6 +164,28 @@ export default function Caballo() {
     }
   }, [clubId, id, editando, caballo])
 
+  useEffect(() => {
+    if (!confirmando || !clubId || !id) return
+    let activo = true
+    const club = clubId
+    const caballoId = id
+    const claveCarga = `${club}:${caballoId}`
+
+    void obtenerPensionActivaDeCaballo(club, caballoId)
+      .then((pension) => {
+        if (!activo) return
+        setConsultaPension({ clave: claveCarga, pension, error: null })
+      })
+      .catch((causa: unknown) => {
+        if (!activo) return
+        setConsultaPension({ clave: claveCarga, pension: null, error: mensajeDe(causa) })
+      })
+
+    return () => {
+      activo = false
+    }
+  }, [confirmando, clubId, id])
+
   async function ejecutar(accion: () => Promise<unknown>): Promise<boolean> {
     if (!clubId || !id || ocupadoRef.current) return false
     const clubDeLaAccion = clubId
@@ -154,6 +194,7 @@ export default function Caballo() {
     ocupadoRef.current = true
     setOcupado(true)
     setErrorAccion(null)
+    setAviso(null)
     try {
       await accion()
       const fresco = await obtenerCaballo(clubDeLaAccion, caballoId)
@@ -196,6 +237,7 @@ export default function Caballo() {
         }
       />
 
+      {mensajeOk ? <Alert tone="ok">{mensajeOk}</Alert> : null}
       {error ? <Alert tone="danger">{error}</Alert> : null}
 
       {cargando ? (
@@ -275,6 +317,7 @@ export default function Caballo() {
                 onClick={() => {
                   setEdicion({ clave, datos: datosDe(caballo) })
                   setBaja(null)
+                  setAviso(null)
                   setErrorAccion(null)
                 }}
               >
@@ -285,7 +328,13 @@ export default function Caballo() {
                   variant="secondary"
                   className="w-full sm:w-auto"
                   disabled={ocupado}
-                  onClick={() => setBaja(clave)}
+                  onClick={() => {
+                    if (baja !== clave) setConsultaPension(null)
+                    setDarBajaPension(true)
+                    setAviso(null)
+                    setErrorAccion(null)
+                    setBaja(clave)
+                  }}
                 >
                   Dar de baja
                 </Button>
@@ -298,6 +347,13 @@ export default function Caballo() {
                     void ejecutar(() => {
                       if (!clubId) return Promise.resolve()
                       return reactivarCaballo(clubId, caballo.id)
+                    }).then((ok) => {
+                      if (ok) {
+                        setAviso({
+                          clave,
+                          mensaje: 'Para cobrarle pensión hay que crear una nueva pensión desde su ficha',
+                        })
+                      }
                     })
                   }
                 >
@@ -312,18 +368,53 @@ export default function Caballo() {
               <p className="font-body text-ink">
                 Se va a dar de baja a {caballo.nombre} y queda sin box.
               </p>
+              {consultandoPension ? (
+                <p className="mt-4 font-body text-muted" role="status">
+                  Cargando pensión…
+                </p>
+              ) : null}
+              {consulta?.error ? (
+                <p className="mt-4 font-body text-muted">{consulta.error}</p>
+              ) : null}
+              {pensionActiva ? (
+                <div className="mt-4 flex flex-col gap-3">
+                  <p className="rounded-control bg-warn-bg px-3 py-2 font-body text-warn-text">
+                    Este caballo tiene una pensión activa de {pesos(pensionActiva.totalVigente)}. Si no la
+                    das de baja, se le seguirán generando cargos cada mes.
+                  </p>
+                  <Checkbox
+                    id="baja-pension"
+                    label="Dar de baja también la pensión desde hoy"
+                    checked={darBajaPension}
+                    disabled={ocupado}
+                    onChange={setDarBajaPension}
+                  />
+                </div>
+              ) : null}
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <Button
                   className="w-full sm:w-auto"
-                  disabled={ocupado}
-                  onClick={() =>
-                    void ejecutar(() => {
-                      if (!clubId) return Promise.resolve()
-                      return darDeBajaCaballo(clubId, caballo.id)
-                    }).then((ok) => {
-                      if (ok) setBaja(null)
+                  disabled={ocupado || consultandoPension}
+                  onClick={() => {
+                    if (!clubId) return
+                    const cerrarPension = Boolean(pensionActiva && darBajaPension)
+                    const resumen = pensionActiva
+                    void ejecutar(() => darDeBajaCaballo(clubId, caballo.id)).then(async (ok) => {
+                      if (!ok) return
+                      setBaja(null)
+                      if (!cerrarPension || !resumen) {
+                        setAviso({ clave, mensaje: 'Caballo dado de baja' })
+                        return
+                      }
+                      const fin = fechaHoy() < resumen.inicio ? resumen.inicio : fechaHoy()
+                      try {
+                        await finalizarPension(clubId, resumen.id, fin)
+                        setAviso({ clave, mensaje: 'Caballo dado de baja y pensión dada de baja' })
+                      } catch {
+                        setErrorAccion({ clave, mensaje: MENSAJE_PENSION_PENDIENTE })
+                      }
                     })
-                  }
+                  }}
                 >
                   Confirmar baja
                 </Button>
