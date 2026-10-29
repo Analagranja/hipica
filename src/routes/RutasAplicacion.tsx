@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import Caballo from '../pages/Caballo.tsx'
+import Cargos from '../pages/Cargos.tsx'
 import Caballos from '../pages/Caballos.tsx'
 import Cobranza from '../pages/Cobranza.tsx'
 import Conceptos from '../pages/Conceptos.tsx'
@@ -60,6 +61,7 @@ export function RutasAplicacion() {
             <Route path="conceptos" element={<Conceptos />} />
             <Route path="pensiones" element={<Pensiones />} />
             <Route path="pensiones/:id" element={<Pension />} />
+            <Route path="cargos" element={<Cargos />} />
             <Route path="pagos" element={<Pagos />} />
             <Route path="pagos/nuevo" element={<RegistrarPago />} />
             <Route path="pagos/:id" element={<Pago />} />

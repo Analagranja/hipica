@@ -85,7 +85,7 @@ export default function Pagos() {
       {error ? <Alert tone="danger">{error}</Alert> : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <MetricCard label="Total cobrado del mes" value={pesos(cobrado)} />
+        <MetricCard label="Total cobrado del mes" value={cargando ? '…' : pesos(cobrado)} />
         <Button className="w-full sm:w-auto" onClick={() => navigate('/cobranza/pagos/nuevo')}>
           Registrar pago
         </Button>

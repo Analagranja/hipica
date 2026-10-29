@@ -12,13 +12,20 @@ import { useAuth } from '../context/auth-state.ts'
 import { obtenerCaballosDePropietario, type Caballo } from '../lib/caballos.ts'
 import {
   etiquetaEstadoPension,
-  fechaHoy,
-  obtenerCargosDePersona,
   obtenerPensionesDeResponsable,
   pesos,
-  type CargoEmitido,
   type PensionLista,
 } from '../lib/cobranza.ts'
+import {
+  etiquetaEstadoCobro,
+  obtenerCargosDePersonaConSaldo,
+  obtenerPagos,
+  obtenerSaldosPersona,
+  textoRecibo,
+  type CargoSaldo,
+  type PagoLista,
+  type SaldosPersona,
+} from '../lib/pagos.ts'
 import {
   actualizarPersona,
   cambiarActivaPersona,
@@ -28,7 +35,8 @@ import {
   type PersonaClub,
 } from '../lib/personas.ts'
 import { type Rol } from '../lib/roles.ts'
-import { etiquetaEstado, textoFecha, textoOpcional, textoUbicacion } from './texto-caballo.ts'
+import { etiquetaEstado, textoFecha, textoOpcional, textoPeriodo, textoUbicacion } from './texto-caballo.ts'
+import { aCentavos } from './texto-monto.ts'
 import {
   datosDe,
   enlaceInvitacion,
@@ -39,21 +47,37 @@ import {
   nombreCompleto,
 } from './Personas.tsx'
 
-type Carga = {
-  clave: string
-  persona: PersonaClub | null
+type Ficha = {
   caballos: Caballo[]
   pensiones: PensionLista[]
-  cargos: CargoEmitido[]
+  cargos: CargoSaldo[]
+  pagos: PagoLista[]
+  saldos: SaldosPersona
+}
+
+type Carga = Ficha & {
+  clave: string
+  persona: PersonaClub | null
   error: string | null
 }
 
-function textoPeriodo(iso: string): string {
-  const [anio, mes] = iso.slice(0, 10).split('-')
-  const fecha = new Date(Number(anio), Number(mes) - 1, 1)
-  if (!anio || !mes || Number.isNaN(fecha.getTime())) return iso
-  const texto = new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric' }).format(fecha)
-  return texto.charAt(0).toLocaleUpperCase('es') + texto.slice(1)
+const FICHA_VACIA: Ficha = {
+  caballos: [],
+  pensiones: [],
+  cargos: [],
+  pagos: [],
+  saldos: { deuda: 0, deudaVencida: 0, saldoAFavor: 0 },
+}
+
+async function cargarFicha(club: string, personaId: string): Promise<Ficha> {
+  const [caballos, pensiones, cargos, pagos, saldos] = await Promise.all([
+    obtenerCaballosDePropietario(club, personaId),
+    obtenerPensionesDeResponsable(club, personaId),
+    obtenerCargosDePersonaConSaldo(club, personaId),
+    obtenerPagos(club, personaId),
+    obtenerSaldosPersona(club, personaId),
+  ])
+  return { caballos, pensiones, cargos, pagos, saldos }
 }
 
 function textoAcceso(persona: PersonaClub): string {
@@ -106,22 +130,11 @@ export default function Persona() {
       .then(async (personaCargada) => {
         if (!activo) return null
         if (!personaCargada) {
-          setCarga({
-            clave: claveCarga,
-            persona: null,
-            caballos: [],
-            pensiones: [],
-            cargos: [],
-            error: null,
-          })
+          setCarga({ clave: claveCarga, persona: null, ...FICHA_VACIA, error: null })
           return null
         }
-        const [caballos, pensiones, cargos] = await Promise.all([
-          obtenerCaballosDePropietario(club, personaId),
-          obtenerPensionesDeResponsable(club, personaId),
-          obtenerCargosDePersona(club, personaId),
-        ])
-        return { persona: personaCargada, caballos, pensiones, cargos }
+        const ficha = await cargarFicha(club, personaId)
+        return { persona: personaCargada, ...ficha }
       })
       .then((resultado) => {
         if (!activo || !resultado) return
@@ -129,14 +142,7 @@ export default function Persona() {
       })
       .catch((causa: unknown) => {
         if (!activo) return
-        setCarga({
-          clave: claveCarga,
-          persona: null,
-          caballos: [],
-          pensiones: [],
-          cargos: [],
-          error: mensajeDe(causa),
-        })
+        setCarga({ clave: claveCarga, persona: null, ...FICHA_VACIA, error: mensajeDe(causa) })
       })
 
     return () => {
@@ -155,23 +161,12 @@ export default function Persona() {
     try {
       await accion()
       const personaCargada = await obtenerPersona(clubDeLaAccion, personaId)
-      let caballos: Caballo[] = []
-      let pensiones: PensionLista[] = []
-      let cargos: CargoEmitido[] = []
-      if (personaCargada) {
-        ;[caballos, pensiones, cargos] = await Promise.all([
-          obtenerCaballosDePropietario(clubDeLaAccion, personaId),
-          obtenerPensionesDeResponsable(clubDeLaAccion, personaId),
-          obtenerCargosDePersona(clubDeLaAccion, personaId),
-        ])
-      }
+      const ficha = personaCargada ? await cargarFicha(clubDeLaAccion, personaId) : FICHA_VACIA
       if (clubIdRef.current !== clubDeLaAccion) return false
       setCarga({
         clave: claveAccion,
         persona: personaCargada,
-        caballos,
-        pensiones,
-        cargos,
+        ...ficha,
         error: null,
       })
       return true
@@ -189,8 +184,6 @@ export default function Persona() {
   if (!esAdmin) return <Navigate to="/" replace />
   if (!id) return <Navigate to="/personas" replace />
 
-  const hoy = fechaHoy()
-  const totalCargos = Math.round((lista?.cargos ?? []).reduce((suma, cargo) => suma + cargo.total, 0) * 100) / 100
   const invitacion = persona?.invitacion ?? null
   const url = invitacion ? enlaceInvitacion(invitacion.token) : ''
   const mensajeInvitacion = `Hola, te invito a ${clubNombre}. Entrá a la app con este enlace: ${url}`
@@ -352,26 +345,70 @@ export default function Persona() {
 
           <section className="flex flex-col gap-4">
             <h2 className="text-lg">Cargos</h2>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <MetricCard label="Deuda" value={pesos(lista.saldos.deuda)} />
+              <MetricCard label="Deuda vencida" value={pesos(lista.saldos.deudaVencida)} />
+              <MetricCard label="Saldo a favor" value={pesos(lista.saldos.saldoAFavor)} />
+            </div>
             {lista.cargos.length === 0 ? (
               <p className="font-body text-muted">No tiene cargos.</p>
             ) : (
-              <>
-                <MetricCard label="Total de cargos emitidos" value={pesos(totalCargos)} />
-                <p className="font-body text-muted">Los pagos se descontarán cuando se registren.</p>
-                {lista.cargos.map((cargo) => {
-                  const vencido = cargo.vencimiento < hoy
-                  return (
-                    <Card key={cargo.id}>
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <DatoFicha etiqueta="Período" valor={textoPeriodo(cargo.periodo)} />
-                        <DatoFicha etiqueta="Total" valor={pesos(cargo.total)} />
-                        <DatoFicha etiqueta="Vencimiento" valor={textoFecha(cargo.vencimiento)} />
-                        <DatoFicha etiqueta="Estado" valor={vencido ? 'Vencido' : 'Pendiente'} />
-                      </div>
-                    </Card>
-                  )
-                })}
-              </>
+              lista.cargos.map((cargo) => (
+                <Card key={cargo.id}>
+                  <div className="flex flex-col gap-3">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <DatoFicha etiqueta="Período" valor={textoPeriodo(cargo.periodo)} />
+                      <DatoFicha etiqueta="Descripción" valor={cargo.descripcion ?? 'Cargo'} />
+                      <DatoFicha etiqueta="Total" valor={pesos(cargo.total)} />
+                      <DatoFicha etiqueta="Pagado" valor={pesos(cargo.pagado)} />
+                      <DatoFicha etiqueta="Saldo" valor={pesos(cargo.saldo)} />
+                      <DatoFicha etiqueta="Vencimiento" valor={textoFecha(cargo.vencimiento)} />
+                      <DatoFicha etiqueta="Estado" valor={etiquetaEstadoCobro(cargo.estadoCobro)} />
+                    </div>
+                    {cargo.estado !== 'anulado' && aCentavos(cargo.saldo) > 0 ? (
+                      <Button
+                        className="w-full sm:w-auto"
+                        onClick={() =>
+                          navigate(`/cobranza/pagos/nuevo?persona=${persona.id}&cargo=${cargo.id}`)
+                        }
+                      >
+                        Registrar pago
+                      </Button>
+                    ) : null}
+                  </div>
+                </Card>
+              ))
+            )}
+          </section>
+
+          <section className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-lg">Pagos</h2>
+              <Button
+                className="w-full sm:w-auto"
+                onClick={() => navigate(`/cobranza/pagos/nuevo?persona=${persona.id}`)}
+              >
+                Registrar pago
+              </Button>
+            </div>
+            {lista.pagos.length === 0 ? (
+              <p className="font-body text-muted">No tiene pagos.</p>
+            ) : (
+              lista.pagos.slice(0, 10).map((pago) => (
+                <Card key={pago.id}>
+                  <Link
+                    to={`/cobranza/pagos/${pago.id}`}
+                    className="block rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-gold"
+                  >
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <DatoFicha etiqueta="Recibo" valor={`N.º ${textoRecibo(pago.numeroRecibo)}`} />
+                      <DatoFicha etiqueta="Fecha" valor={textoFecha(pago.fecha)} />
+                      <DatoFicha etiqueta="Monto" valor={pesos(pago.monto)} />
+                      <DatoFicha etiqueta="Estado" valor={pago.estado === 'anulado' ? 'Anulado' : 'Confirmado'} />
+                    </div>
+                  </Link>
+                </Card>
+              ))
             )}
           </section>
         </>

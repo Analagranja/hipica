@@ -461,45 +461,6 @@ export async function obtenerPensionesDeResponsable(
   return armarPensiones(clubId, (data ?? []) as FilaPension[])
 }
 
-export type CargoEmitido = {
-  id: string
-  periodo: string
-  vencimiento: string
-  total: number
-}
-
-export async function obtenerCargosDePersona(
-  clubId: string,
-  personaId: string,
-): Promise<CargoEmitido[]> {
-  const { data, error } = await supabase
-    .from('cargos')
-    .select('id, periodo, vencimiento, total')
-    .eq('club_id', clubId)
-    .eq('persona_id', personaId)
-    .neq('estado', 'anulado')
-    .order('periodo', { ascending: false })
-    .order('vencimiento', { ascending: false })
-
-  if (error) throw new Error(mensajeErrorSupabase(error))
-
-  return ((data ?? []) as {
-    id: string
-    periodo: string | null
-    vencimiento: string | null
-    total: number | string | null
-  }[]).flatMap((fila) => {
-    if (!fila.id || !fila.periodo || !fila.vencimiento) return []
-    const cargo: CargoEmitido = {
-      id: fila.id,
-      periodo: fila.periodo.slice(0, 10),
-      vencimiento: fila.vencimiento.slice(0, 10),
-      total: comoNumero(fila.total),
-    }
-    return [cargo]
-  })
-}
-
 export async function obtenerPensiones(clubId: string): Promise<PensionLista[]> {
   const { data, error } = await supabase
     .from('pensiones')

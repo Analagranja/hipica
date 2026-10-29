@@ -6,6 +6,7 @@ import { useAuth } from '../context/auth-state.ts'
 const SECCIONES = [
   { to: '/cobranza/conceptos', label: 'Conceptos' },
   { to: '/cobranza/pensiones', label: 'Pensiones' },
+  { to: '/cobranza/cargos', label: 'Cargos' },
   { to: '/cobranza/pagos', label: 'Pagos' },
 ]
 
@@ -21,7 +22,7 @@ export default function Cobranza() {
   return (
     <div className="flex flex-col gap-6">
       {esDetalle ? null : (
-        <PageHeader title="Cobranza" description="Conceptos de cobro, pensiones y pagos." />
+        <PageHeader title="Cobranza" description="Conceptos de cobro, pensiones, cargos y pagos." />
       )}
       <Tabs items={SECCIONES} />
       <Outlet />

@@ -456,12 +456,19 @@ export async function obtenerSaldosPersona(clubId: string, personaId: string): P
   }
 }
 
+function montoRpc(centavos: number): string {
+  const absoluto = Math.abs(Math.round(centavos))
+  const entero = Math.floor(absoluto / 100)
+  const fraccion = String(absoluto % 100).padStart(2, '0')
+  return `${centavos < 0 ? '-' : ''}${entero}.${fraccion}`
+}
+
 function imputacionesRpc(items: ImputacionAlta[]) {
   return items
     .filter((item) => item.centavos > 0)
     .map((item) => ({
       cargo_id: item.cargoId,
-      monto: desdeCentavos(item.centavos),
+      monto: montoRpc(item.centavos),
     }))
 }
 
@@ -480,7 +487,7 @@ export async function registrarPago(
   const { data, error } = await supabase.rpc('registrar_pago', {
     p_club: clubId,
     p_persona: personaId,
-    p_monto: desdeCentavos(montoCentavos),
+    p_monto: montoRpc(montoCentavos),
     p_fecha: fecha,
     p_medio: medio,
     p_referencia: referencia.trim() || null,
