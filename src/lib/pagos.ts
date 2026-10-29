@@ -51,6 +51,7 @@ export type CargoSaldo = {
   id: string
   personaId: string
   personaNombre: string
+  pensionId: string | null
   periodo: string
   vencimiento: string
   descripcion: string | null
@@ -361,6 +362,7 @@ async function leerImputaciones(clubId: string, pagoId: string): Promise<Imputac
 type FilaCargo = {
   id: string
   persona_id: string | null
+  pension_id: string | null
   periodo: string | null
   vencimiento: string | null
   descripcion: string | null
@@ -379,6 +381,7 @@ function aCargo(fila: FilaCargo, personas: Map<string, FilaPersona>): CargoSaldo
     id: fila.id,
     personaId: fila.persona_id,
     personaNombre: persona?.nombre ? nombrePersona(persona.nombre, persona.apellido ?? null) : 'Persona',
+    pensionId: fila.pension_id,
     periodo: fechaCorta(fila.periodo),
     vencimiento: fechaCorta(fila.vencimiento),
     descripcion: fila.descripcion?.trim() || null,
@@ -396,7 +399,9 @@ async function consultarCargos(
 ): Promise<CargoSaldo[]> {
   let consulta = supabase
     .from('cargos_con_saldo')
-    .select('id, persona_id, periodo, vencimiento, descripcion, total, pagado, saldo, estado, estado_cobro')
+    .select(
+      'id, persona_id, pension_id, periodo, vencimiento, descripcion, total, pagado, saldo, estado, estado_cobro',
+    )
     .eq('club_id', clubId)
   if (filtro.personaId) consulta = consulta.eq('persona_id', filtro.personaId)
   if (filtro.periodo) consulta = consulta.eq('periodo', filtro.periodo)
@@ -430,10 +435,127 @@ export async function obtenerCargosDePersonaConSaldo(
   return lista
 }
 
-export async function obtenerCargosDelMes(clubId: string, periodo: string): Promise<CargoSaldo[]> {
-  const lista = await consultarCargos(clubId, { periodo })
-  lista.sort((a, b) => a.vencimiento.localeCompare(b.vencimiento) || a.personaNombre.localeCompare(b.personaNombre, 'es'))
-  return lista
+export type CargoMes = CargoSaldo & {
+  caballoNombre: string | null
+}
+
+export type ItemCargo = {
+  id: string
+  descripcion: string
+  monto: number
+}
+
+export type DatosCargoManual = {
+  personaId: string
+  descripcion: string
+  montoCentavos: number
+  periodo: string
+  vencimiento: string
+}
+
+async function caballosPorPension(clubId: string): Promise<Map<string, string>> {
+  const [pensiones, caballos] = await Promise.all([
+    supabase.from('pensiones').select('id, caballo_id').eq('club_id', clubId),
+    supabase.from('caballos').select('id, nombre').eq('club_id', clubId),
+  ])
+  if (pensiones.error) throw new Error(mensajeErrorSupabase(pensiones.error))
+  if (caballos.error) throw new Error(mensajeErrorSupabase(caballos.error))
+  const nombres = new Map<string, string>()
+  for (const caballo of (caballos.data ?? []) as { id: string; nombre: string | null }[]) {
+    if (caballo.id && caballo.nombre) nombres.set(caballo.id, caballo.nombre)
+  }
+  const mapa = new Map<string, string>()
+  for (const pension of (pensiones.data ?? []) as { id: string; caballo_id: string | null }[]) {
+    const nombre = pension.caballo_id ? nombres.get(pension.caballo_id) : undefined
+    if (pension.id && nombre) mapa.set(pension.id, nombre)
+  }
+  return mapa
+}
+
+export async function obtenerCargosDelMes(clubId: string, periodo: string): Promise<CargoMes[]> {
+  const [lista, caballos] = await Promise.all([
+    consultarCargos(clubId, { periodo }),
+    caballosPorPension(clubId),
+  ])
+  const cargos = lista.map((cargo) => ({
+    ...cargo,
+    caballoNombre: cargo.pensionId ? caballos.get(cargo.pensionId) ?? null : null,
+  }))
+  cargos.sort((a, b) => a.vencimiento.localeCompare(b.vencimiento) || a.personaNombre.localeCompare(b.personaNombre, 'es'))
+  return cargos
+}
+
+export async function obtenerItemsDeCargo(clubId: string, cargoId: string): Promise<ItemCargo[]> {
+  const { data, error } = await supabase
+    .from('cargo_items')
+    .select('id, descripcion, monto')
+    .eq('club_id', clubId)
+    .eq('cargo_id', cargoId)
+    .order('descripcion')
+  if (error) throw new Error(mensajeErrorSupabase(error))
+  return ((data ?? []) as { id: string; descripcion: string | null; monto: number | string | null }[]).flatMap(
+    (fila) => {
+      if (!fila.id) return []
+      const item: ItemCargo = {
+        id: fila.id,
+        descripcion: fila.descripcion?.trim() || 'Ítem',
+        monto: comoNumero(fila.monto),
+      }
+      return [item]
+    },
+  )
+}
+
+export async function generarCargosMes(clubId: string, periodo: string): Promise<number> {
+  const { data, error } = await supabase.rpc('generar_cargos_mes', {
+    p_club: clubId,
+    p_periodo: periodo,
+  })
+  if (error) throw new Error(mensajeTalCual(error))
+  return typeof data === 'number' ? data : Number(data ?? 0)
+}
+
+export async function crearCargoManual(clubId: string, datos: DatosCargoManual): Promise<string> {
+  const descripcion = datos.descripcion.trim()
+  if (!datos.personaId) throw new Error('Elegí la persona.')
+  if (!descripcion) throw new Error('Ingresá la descripción.')
+  if (datos.montoCentavos <= 0) throw new Error('El monto debe ser mayor a cero.')
+  if (!/^\d{4}-\d{2}-01$/.test(datos.periodo)) throw new Error('Elegí el mes.')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datos.vencimiento)) throw new Error('Ingresá el vencimiento.')
+
+  const monto = montoRpc(datos.montoCentavos)
+  const { data, error } = await supabase
+    .from('cargos')
+    .insert({
+      club_id: clubId,
+      persona_id: datos.personaId,
+      pension_id: null,
+      periodo: datos.periodo,
+      vencimiento: datos.vencimiento,
+      total: monto,
+      descripcion,
+    })
+    .select('id')
+    .single()
+  if (error) throw new Error(mensajeErrorSupabase(error))
+  const cargoId = (data as { id: string }).id
+
+  const item = await supabase.from('cargo_items').insert({
+    club_id: clubId,
+    cargo_id: cargoId,
+    concepto_id: null,
+    descripcion,
+    monto,
+  })
+  if (item.error) {
+    await supabase
+      .from('cargos')
+      .update({ estado: 'anulado', motivo_anulacion: 'No se pudo guardar el ítem del cargo' })
+      .eq('id', cargoId)
+      .eq('club_id', clubId)
+    throw new Error(mensajeErrorSupabase(item.error))
+  }
+  return cargoId
 }
 
 export async function obtenerSaldosPersona(clubId: string, personaId: string): Promise<SaldosPersona> {
@@ -530,10 +652,12 @@ export async function anularPago(pagoId: string, motivo: string): Promise<void> 
   if (error) throw new Error(mensajeTalCual(error))
 }
 
-export async function anularCargo(clubId: string, cargoId: string): Promise<void> {
+export async function anularCargo(clubId: string, cargoId: string, motivo: string): Promise<void> {
+  const texto = motivo.trim()
+  if (!texto) throw new Error('El motivo de la anulación es obligatorio.')
   const { data, error } = await supabase
     .from('cargos')
-    .update({ estado: 'anulado' })
+    .update({ estado: 'anulado', motivo_anulacion: texto })
     .eq('id', cargoId)
     .eq('club_id', clubId)
     .eq('estado', 'emitido')

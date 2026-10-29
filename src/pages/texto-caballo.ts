@@ -43,6 +43,29 @@ export function mesDeFecha(fecha: string): string {
   return `${fecha.slice(0, 7)}-01`
 }
 
+export function desplazarMes(mes: string, cantidad: number): string {
+  const [anio, numero] = mes.slice(0, 7).split('-').map(Number)
+  const fecha = new Date(anio, numero - 1 + cantidad, 1)
+  return `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-01`
+}
+
+export function nombreMes(mes: string): string {
+  const [anio, numero] = mes.slice(0, 7).split('-').map(Number)
+  const fecha = new Date(anio, numero - 1, 1)
+  if (Number.isNaN(fecha.getTime())) return mes
+  const nombre = new Intl.DateTimeFormat('es-AR', { month: 'long' }).format(fecha)
+  return `${nombre} ${anio}`
+}
+
+export function mesesAlrededor(centro: string, antes = 12, despues = 12): { value: string; label: string }[] {
+  const opciones: { value: string; label: string }[] = []
+  for (let indice = despues; indice >= -antes; indice -= 1) {
+    const iso = desplazarMes(centro, indice)
+    opciones.push({ value: iso, label: textoPeriodo(iso) })
+  }
+  return opciones
+}
+
 export function opcionesDeMes(cantidad = 18): { value: string; label: string }[] {
   const hoy = new Date()
   const opciones: { value: string; label: string }[] = []
