@@ -6,19 +6,22 @@ import { useAuth } from '../context/auth-state.ts'
 const SECCIONES = [
   { to: '/cobranza/conceptos', label: 'Conceptos' },
   { to: '/cobranza/pensiones', label: 'Pensiones' },
+  { to: '/cobranza/pagos', label: 'Pagos' },
 ]
 
 export default function Cobranza() {
   const { tieneRol } = useAuth()
   const { pathname } = useLocation()
-  const esDetalle = /^\/cobranza\/pensiones\/[^/]+$/.test(pathname)
+  const esDetalle =
+    /^\/cobranza\/pensiones\/[^/]+$/.test(pathname) ||
+    /^\/cobranza\/pagos\/(?!nuevo$)[^/]+$/.test(pathname)
 
   if (!tieneRol('administrador')) return <Navigate to="/" replace />
 
   return (
     <div className="flex flex-col gap-6">
       {esDetalle ? null : (
-        <PageHeader title="Cobranza" description="Conceptos de cobro y pensiones." />
+        <PageHeader title="Cobranza" description="Conceptos de cobro, pensiones y pagos." />
       )}
       <Tabs items={SECCIONES} />
       <Outlet />

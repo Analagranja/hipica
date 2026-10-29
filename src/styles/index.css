@@ -12,3 +12,21 @@
     @apply font-heading text-ink;
   }
 }
+
+@media print {
+  header,
+  aside,
+  nav,
+  .no-imprimir {
+    display: none !important;
+  }
+
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .recibo {
+    display: block;
+  }
+}

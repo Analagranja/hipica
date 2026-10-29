@@ -31,6 +31,29 @@ export function textoUbicacion(caballo: Caballo): string {
   return `${caballo.ubicacion.cuadraNombre} · Box ${caballo.ubicacion.numero}`
 }
 
+export function textoPeriodo(iso: string): string {
+  const [anio, mes] = iso.slice(0, 10).split('-')
+  const fecha = new Date(Number(anio), Number(mes) - 1, 1)
+  if (!anio || !mes || Number.isNaN(fecha.getTime())) return iso
+  const texto = new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric' }).format(fecha)
+  return texto.charAt(0).toLocaleUpperCase('es') + texto.slice(1)
+}
+
+export function mesDeFecha(fecha: string): string {
+  return `${fecha.slice(0, 7)}-01`
+}
+
+export function opcionesDeMes(cantidad = 18): { value: string; label: string }[] {
+  const hoy = new Date()
+  const opciones: { value: string; label: string }[] = []
+  for (let indice = 0; indice < cantidad; indice += 1) {
+    const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - indice, 1)
+    const iso = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-01`
+    opciones.push({ value: iso, label: textoPeriodo(iso) })
+  }
+  return opciones
+}
+
 export function textoFecha(valor: string | null): string {
   if (!valor) return 'Sin fecha'
   const [anio, mes, dia] = valor.slice(0, 10).split('-')

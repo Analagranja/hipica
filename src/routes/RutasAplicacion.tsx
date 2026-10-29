@@ -7,10 +7,13 @@ import CrearClub from '../pages/CrearClub.tsx'
 import Cuadras from '../pages/Cuadras.tsx'
 import Design from '../pages/Design.tsx'
 import Inicio from '../pages/Inicio.tsx'
+import Pago from '../pages/Pago.tsx'
+import Pagos from '../pages/Pagos.tsx'
 import Pension from '../pages/Pension.tsx'
 import Persona from '../pages/Persona.tsx'
 import Pensiones from '../pages/Pensiones.tsx'
 import Personas from '../pages/Personas.tsx'
+import RegistrarPago from '../pages/RegistrarPago.tsx'
 import Invitacion from '../pages/Invitacion.tsx'
 import Login from '../pages/Login.tsx'
 import Registro from '../pages/Registro.tsx'
@@ -57,6 +60,9 @@ export function RutasAplicacion() {
             <Route path="conceptos" element={<Conceptos />} />
             <Route path="pensiones" element={<Pensiones />} />
             <Route path="pensiones/:id" element={<Pension />} />
+            <Route path="pagos" element={<Pagos />} />
+            <Route path="pagos/nuevo" element={<RegistrarPago />} />
+            <Route path="pagos/:id" element={<Pago />} />
           </Route>
           <Route path="/design" element={<Design />} />
         </Route>
